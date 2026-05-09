@@ -426,7 +426,7 @@ Consume alertas de RabbitMQ y las entrega en tiempo real al frontend usando **Si
 
 ### 3.7 Servicio de Analytics (ASP.NET Core Web API)
 
-Expone endpoints de estadísticas y se integra con Apache Superset para dashboards avanzados. Provee análisis de tendencias: zonas de mayor hurto (mapas de calor), rutas frecuentes de escape, distribución por hora y comparativas entre ciudades y países.
+Expone endpoints de estadísticas y se integra con Apache Superset para dashboards avanzados. Los análisis más útiles para operaciones de seguridad: zonas de mayor concentración de hurtos, rutas de escape frecuentes, distribución horaria y comparativas entre ciudades y países.
 
 ### 3.8 Adaptadores por País (Worker Services .NET)
 
@@ -450,7 +450,7 @@ Base de datos relacional central. Almacena eventos de avistamiento, vehículos h
 
 ### 3.13 MinIO
 
-Almacenamiento de objetos compatible con S3. Almacena las fotos de los vehículos avistados. Al ser compatible con S3, puede migrar entre AWS S3, Azure Blob Storage o instancia propia sin cambios en el código.
+Almacenamiento de objetos compatible con S3. Almacena las fotos de los vehículos avistados. La compatibilidad con S3 es deliberada: si en algún momento se migra a AWS S3 o Azure Blob Storage, el código de los servicios no cambia.
 
 ### 3.14 RabbitMQ
 
@@ -490,7 +490,7 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Justificación:** cada país tiene su BD en diferente tecnología y formato. Un adaptador por país aísla la complejidad de cada integración. Si una BD externa cambia su estructura o protocolo, solo se modifica el adaptador de ese país sin afectar el resto del sistema. Nuevos países se incorporan con un nuevo adaptador sin tocar código existente.
 
-**Alternativa considerada:** ETL centralizado con un único servicio que conoce todos los formatos. Descartada porque concentra la complejidad y hace que cualquier cambio en una fuente afecte al componente completo.
+**Alternativa considerada:** un ETL centralizado que conociera todos los formatos. El problema es que cualquier cambio en una fuente externa afecta al componente completo — no escala a medida que crece el número de países.
 
 ### 4.4 Keycloak como broker de identidades
 
@@ -499,7 +499,7 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 **Justificación:** las entidades policiales usan mecanismos heterogéneos (LDAP, BD, SOAP, REST). Keycloak soporta todos nativamente sin desarrollo adicional. Es open source, cloud-agnostic y emite tokens JWT estándar. El sistema no administra usuarios — solo consume identidades ya existentes en cada país.
 
 **Alternativas consideradas:**
-- **Azure AD B2C:** excelente integración con .NET pero genera dependencia con el ecosistema Microsoft — viola el requisito cloud-agnostic.
+- **Azure AD B2C:** buena integración con .NET, pero genera dependencia con el ecosistema Microsoft — que es precisamente lo que esta arquitectura busca evitar.
 - **Auth0 / Okta:** muy robustos pero tienen costo de licencia y son propietarios.
 - **IdentityServer:** open source y .NET nativo, pero requiere desarrollo manual de conectores para cada mecanismo externo — mayor riesgo en un componente de seguridad crítica.
 
@@ -507,7 +507,7 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Decisión:** desplegar todos los microservicios como contenedores Docker en Kubernetes.
 
-**Justificación:** Kubernetes es el estándar de facto para orquestación de contenedores. Corre en AWS (EKS), Azure (AKS), Google Cloud (GKE) y en servidores propios sin modificar el código de los servicios — garantiza cloud-agnostic. Provee autoscaling automático, reinicio de contenedores caídos y distribución de carga nativamente.
+**Justificación:** Kubernetes es el estándar de facto para orquestación de contenedores. Corre en AWS (EKS), Azure (AKS), Google Cloud (GKE) y en servidores propios — el código de los servicios no cambia entre entornos. Provee autoscaling automático, reinicio de contenedores caídos y distribución de carga nativamente.
 
 ### 4.6 YARP como API Gateway
 
@@ -515,7 +515,7 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Justificación:** YARP es una librería .NET open source, mantenida por Microsoft, que permite construir un API Gateway completamente en C# integrado al ecosistema .NET. Es cloud-agnostic y altamente configurable.
 
-**Alternativas consideradas:** Nginx y Kong son válidos pero requieren configuración fuera del stack .NET. Para un sistema .NET, YARP ofrece mejor integración y menor fricción operativa.
+**Alternativas consideradas:** Nginx y Kong funcionan bien, pero hay que configurarlos fuera del stack .NET. Con YARP la configuración vive en el mismo proyecto C# y se beneficia de las mismas herramientas de debug y despliegue.
 
 ### 4.7 Blazor WebAssembly para el frontend
 
@@ -529,21 +529,21 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Decisión:** usar Apache Superset sobre PostgreSQL para dashboards analíticos.
 
-**Justificación:** Superset es open source, cloud-agnostic, sin costo de licencia y tiene soporte nativo para visualizaciones geoespaciales (mapas de calor) que son centrales para el análisis de zonas de hurto.
+**Justificación:** Superset es open source, sin costo de licencia, y tiene soporte nativo para visualizaciones geoespaciales. Los mapas de calor son la visualización más útil para identificar patrones de concentración de hurtos.
 
-**Alternativa considerada:** Power BI — excelente integración con .NET y Azure, pero tiene costo de licencia y genera dependencia con el ecosistema Microsoft.
+**Alternativa considerada:** Power BI — buena integración con el ecosistema Microsoft, pero tiene costo de licencia y no encaja en una estrategia multi-nube.
 
 ### 4.9 Leaflet.js para mapas
 
 **Decisión:** usar Leaflet.js (via BlazorLeaflet) para la visualización de eventos en mapa.
 
-**Justificación:** Leaflet es open source, gratuito y sin límites de uso. Google Maps tiene costo por volumen de peticiones, lo que en un sistema con miles de consultas diarias representaría un costo significativo y generaría dependencia con Google.
+**Justificación:** Leaflet es gratuito y sin límites de uso. Google Maps cobra por petición — en un sistema con miles de consultas diarias ese costo escala rápido, además de generar dependencia con un proveedor externo.
 
 ### 4.10 CI/CD con GitHub Actions
 
 **Decisión:** usar GitHub Actions como pipeline de integración y despliegue continuo.
 
-**Justificación:** GitHub Actions es cloud-agnostic — los pipelines funcionan independientemente del proveedor de nube donde se despliegue. Permite automatizar la compilación, pruebas, construcción de imágenes Docker y despliegue en Kubernetes.
+**Justificación:** GitHub Actions no está atado a ningún proveedor — los mismos pipelines funcionan independientemente de dónde se despliegue el sistema. Permite automatizar la compilación, pruebas, construcción de imágenes Docker y despliegue en Kubernetes.
 
 **Alternativa considerada:** Azure DevOps — robusto y bien integrado con .NET, pero tiene mayor acoplamiento con el ecosistema Microsoft.
 
@@ -551,7 +551,7 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Decisión:** usar Terraform para aprovisionar toda la infraestructura en la nube.
 
-**Justificación:** Terraform es cloud-agnostic — los mismos scripts pueden desplegar la infraestructura en AWS, Azure, GCP o una nube privada cambiando únicamente el proveedor configurado. Permite reproducir el entorno completo de forma automatizada y versionada.
+**Justificación:** Con Terraform, los mismos scripts despliegan la infraestructura en AWS, Azure, GCP o una nube privada — solo cambia el proveedor configurado. Permite reproducir el entorno completo de forma automatizada y versionada.
 
 ### 4.12 Escalabilidad del MQTT Broker
 
@@ -574,7 +574,7 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 ### 5.1 Disponibilidad
 
 - **Objetivo:** 99.9% de disponibilidad (máximo ~8 horas de downtime al año).
-- **Mecanismos:** Kubernetes reinicia automáticamente contenedores caídos y redistribuye la carga. RabbitMQ garantiza que los mensajes no se pierdan ante fallas parciales. El patrón store-and-forward en los dispositivos garantiza que los eventos se recopilen incluso sin conectividad.
+- **Mecanismos:** Kubernetes reinicia automáticamente contenedores caídos y redistribuye la carga. RabbitMQ actúa como buffer — los mensajes no se pierden ante fallas parciales. El patrón store-and-forward en los dispositivos cubre el escenario de conectividad intermitente.
 
 ### 5.2 Escalabilidad
 
@@ -585,7 +585,7 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 ### 5.3 Seguridad
 
 **Comunicación de dispositivos — mTLS:**
-Cada dispositivo tiene un certificado digital único emitido al momento de su instalación. La comunicación con el MQTT Broker usa mTLS (TLS mutuo) — tanto el servidor como el dispositivo se autentican mutuamente. Un dispositivo sin certificado válido no puede conectarse. Si un dispositivo es comprometido, su certificado se revoca desde el sistema central y queda bloqueado inmediatamente. Implementado en .NET via X.509 certificates (soporte nativo, sin librerías adicionales).
+Cada dispositivo tiene un certificado digital único emitido al momento de su instalación. La comunicación con el MQTT Broker usa mTLS (TLS mutuo) — tanto el servidor como el dispositivo se autentican mutuamente. Un dispositivo sin certificado válido no puede conectarse. Si un dispositivo es comprometido, su certificado se revoca desde el sistema central y queda bloqueado inmediatamente. Implementado en .NET via X.509 certificates, con soporte nativo del runtime.
 
 **APIs — JWT + HTTPS:**
 Todos los endpoints del API Gateway están protegidos con Token JWT emitido por Keycloak. Sin token válido ninguna petición es procesada. Rate limiting en YARP previene ataques de fuerza bruta. Toda comunicación usa HTTPS obligatorio.
@@ -599,7 +599,7 @@ Cada evento y cada registro de vehículo hurtado está marcado con el campo `pai
 ### 5.4 Resiliencia
 
 **Circuit Breaker y Retry con Polly:**
-Todos los microservicios implementan Circuit Breaker y políticas de retry con backoff exponencial usando la librería **Polly** (estándar .NET para resiliencia). Ante fallas de un servicio dependiente, el Circuit Breaker corta el flujo automáticamente evitando fallas en cascada.
+Todos los microservicios implementan Circuit Breaker y políticas de retry con backoff exponencial usando **Polly**. Ante fallas de un servicio dependiente, el Circuit Breaker corta el flujo automáticamente evitando fallas en cascada.
 
 **RabbitMQ como buffer:**
 Los servicios se comunican a través de RabbitMQ, no directamente entre sí. Si el Servicio de Detección se cae, los mensajes quedan en la cola y se procesan cuando el servicio se recupera — sin pérdida de datos.
@@ -615,7 +615,7 @@ El sistema implementa los tres pilares de observabilidad:
 Todos los microservicios escriben logs estructurados con **Serilog** (.NET) que se envían a Logstash y se almacenan en Elasticsearch. Kibana provee una interfaz para buscar y analizar logs de todos los servicios en un solo lugar.
 
 **Trazabilidad distribuida — OpenTelemetry:**
-Cada evento recibe un ID único de traza al entrar al sistema. Ese ID viaja con el evento a través de todos los microservicios, permitiendo seguir el recorrido completo de cualquier evento de principio a fin. Implementado con **OpenTelemetry** (estándar abierto, cloud-agnostic) instalado como NuGet en cada microservicio.
+Cada evento recibe un ID único de traza al entrar al sistema. Ese ID viaja con el evento a través de todos los microservicios, permitiendo seguir el recorrido completo de cualquier evento de principio a fin. Implementado con **OpenTelemetry**, disponible como NuGet en cada microservicio.
 
 **Métricas y Health Checks — Prometheus + Grafana:**
 Cada microservicio expone un endpoint `/health` que Kubernetes consulta para determinar si el servicio está sano. Las métricas de rendimiento (CPU, memoria, tiempos de respuesta, eventos procesados) se recolectan con Prometheus y se visualizan en dashboards de Grafana en tiempo real.
