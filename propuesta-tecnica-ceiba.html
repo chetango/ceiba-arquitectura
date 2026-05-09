@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema Anti-Hurto de Vehículos — Ceiba</title>
+
+  <!-- Reveal.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" />
+
+  <!-- Mermaid -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+  <style>
+    /* ─── Tokens ─── */
+    :root {
+      --blue:   #58a6ff;
+      --amber:  #f0a500;
+      --green:  #3fb950;
+      --red:    #ff4444;
+      --bg:     #0d1117;
+      --bg2:    #161b22;
+      --border: #30363d;
+      --text:   #c9d1d9;
+      --mono:   'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    }
+
+    /* ─── Base overrides ─── */
+    .reveal-viewport { background: var(--bg); }
+    .reveal .slides { font-family: var(--mono); color: var(--text); }
+    .reveal h1, .reveal h2, .reveal h3 { font-family: var(--mono); text-transform: none; letter-spacing: -0.02em; }
+    .reveal h1 { font-size: 2.4rem; }
+    .reveal h2 { font-size: 1.8rem; color: var(--blue); border-bottom: 1px solid var(--border); padding-bottom: .3em; }
+    .reveal h3 { font-size: 1.2rem; color: var(--amber); }
+    .reveal a  { color: var(--blue); }
+    .reveal section { padding: 1rem 2rem; }
+
+    /* ─── Progress bar ─── */
+    .reveal .progress { height: 3px; color: var(--blue); }
+
+    /* ─── Cover slide (Figma design system) ─── */
+    .cover2-wrap {
+      text-align: center;
+      padding: 0 2rem;
+      margin-top: -1.8rem;
+      position: relative;
+    }
+    .cover2-glow {
+      position: absolute;
+      top: 38%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 480px;
+      height: 220px;
+      background: radial-gradient(ellipse, rgba(201,52,72,0.13) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .cover2-wrap > * { position: relative; z-index: 1; }
+    .cover2-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      background: rgba(201,52,72,0.08);
+      border: 1px solid rgba(201,52,72,0.28);
+      border-radius: 8px;
+      padding: 4px 14px;
+      font-size: .68rem;
+      color: #c93448;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    .cover2-title {
+      font-size: 2.6rem;
+      font-weight: 700;
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      color: #f9fafb;
+      margin-bottom: .5rem;
+    }
+    .cover2-title span { color: #c93448; }
+    .cover2-divider {
+      width: 36px;
+      height: 2px;
+      background: #c93448;
+      margin: .65rem auto .85rem;
+      border-radius: 2px;
+    }
+    .cover2-sub {
+      font-size: .82rem;
+      color: #9ca3af;
+      line-height: 1.65;
+      max-width: 540px;
+      margin: 0 auto;
+    }
+    .cover2-glass {
+      background: rgba(26,26,32,0.45);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: .75rem 1.2rem;
+      display: inline-block;
+      margin-top: 1rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+    }
+    .cover2-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+      justify-content: center;
+    }
+    .cover2-chip {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 3px 11px;
+      font-size: .68rem;
+      color: #d1d5db;
+    }
+    .cover2-nav {
+      margin-top: 1.2rem;
+      font-size: .6rem;
+      color: rgba(255,255,255,0.18);
+    }
+    /* Legacy classes kept for other slides */
+    .cover-title {
+      font-size: 2.8rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--blue), var(--amber));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      line-height: 1.2;
+    }
+    .cover-sub { font-size: 1.1rem; color: var(--text); opacity: .8; margin-top: .6rem; }
+    .cover-badge {
+      display: inline-block; background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 6px; padding: .25rem .7rem; font-size: .8rem; margin: .2rem; color: var(--blue);
+    }
+    .cover-badges { margin-top: 1.4rem; }
+
+    /* ─── Stat card (slide 2) ─── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.2rem;
+      margin-top: 1.4rem;
+    }
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem .8rem;
+      text-align: center;
+    }
+    .stat-num  { font-size: 2.4rem; font-weight: 700; color: var(--amber); }
+    .stat-label{ font-size: .78rem; color: var(--text); opacity: .75; margin-top: .3rem; line-height: 1.4; }
+
+    /* ─── Pillars (slide 3) ─── */
+    .pillar-stack {
+      display: flex;
+      flex-direction: column;
+      gap: .9rem;
+      margin-top: 1rem;
+    }
+    .pillar {
+      background: var(--bg2);
+      border-left: 4px solid var(--blue);
+      border-radius: 0 10px 10px 0;
+      padding: .9rem 1.2rem;
+      text-align: left;
+      transition: border-color .3s;
+    }
+    .pillar.edge  { border-color: var(--amber); }
+    .pillar.cloud { border-color: var(--blue);  }
+    .pillar.integ { border-color: var(--green);  }
+    .pillar-title { font-size: 1rem; font-weight: 700; }
+    .pillar.edge  .pillar-title { color: var(--amber); }
+    .pillar.cloud .pillar-title { color: var(--blue);  }
+    .pillar.integ .pillar-title { color: var(--green);  }
+    .pillar-desc  { font-size: .78rem; opacity: .8; margin-top: .3rem; }
+
+    /* ─── Mermaid wrapper ─── */
+    .mermaid-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-top: .8rem;
+      overflow: auto;
+      max-height: 420px;
+    }
+    .mermaid { font-size: 13px !important; }
+
+    /* ─── Device slide ─── */
+    .device-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+      text-align: left;
+    }
+    .device-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .device-card h4 { color: var(--amber); font-size: .9rem; margin: 0 0 .5rem; }
+    .device-card ul { font-size: .75rem; padding-left: 1.2rem; margin: 0; }
+    .device-card li { margin-bottom: .3rem; }
+    .device-card code { color: var(--green); font-size: .7rem; }
+
+    /* ─── Detection flow (animated steps) ─── */
+    .flow-steps {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-top: 1.2rem;
+    }
+    .flow-step {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .5rem .9rem;
+      font-size: .72rem;
+      text-align: center;
+      opacity: .35;
+      transition: opacity .4s, border-color .4s, transform .3s;
+      min-width: 90px;
+    }
+    .flow-step.active {
+      opacity: 1;
+      border-color: var(--blue);
+      transform: scale(1.05);
+    }
+    .flow-step.done   { opacity: .6; border-color: var(--green); }
+    .flow-arrow { color: var(--border); font-size: 1.2rem; }
+    .flow-arrow.active { color: var(--blue); }
+    .flow-label { font-size: .6rem; color: var(--blue); margin-top: .25rem; display: block; }
+
+    .flow-btn-row { margin-top: 1rem; text-align: center; }
+    .flow-btn {
+      background: var(--bg2);
+      border: 1px solid var(--blue);
+      border-radius: 6px;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: .8rem;
+      padding: .4rem 1.2rem;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .flow-btn:hover { background: rgba(88,166,255,.15); }
+
+    .flow-detail {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .6rem 1rem;
+      font-size: .72rem;
+      margin-top: .8rem;
+      min-height: 36px;
+      color: var(--text);
+      text-align: center;
+      transition: all .3s;
+    }
+
+    /* ─── Tech stack grid ─── */
+    .stack-section { margin-top: .6rem; }
+    .stack-section-title {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--amber);
+      margin-bottom: .4rem;
+    }
+    .badge-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4rem;
+      margin-bottom: .8rem;
+    }
+    .badge {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .22rem .65rem;
+      font-size: .7rem;
+      color: var(--text);
+    }
+    .badge.blue   { border-color: var(--blue);  color: var(--blue);  }
+    .badge.amber  { border-color: var(--amber); color: var(--amber); }
+    .badge.green  { border-color: var(--green); color: var(--green); }
+
+    /* ─── Quality pillars ─── */
+    .quality-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: .7rem;
+      margin-top: 1.2rem;
+    }
+    .quality-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .9rem .5rem;
+      text-align: center;
+    }
+    .quality-icon { font-size: 1.8rem; }
+    .quality-name { font-size: .68rem; color: var(--blue); font-weight: 700; margin-top: .4rem; }
+    .quality-desc { font-size: .6rem; opacity: .7; margin-top: .3rem; line-height: 1.4; }
+
+    /* ─── Decisions ─── */
+    .decision-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .9rem;
+      margin-top: 1rem;
+      text-align: left;
+    }
+    .decision-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .9rem 1rem;
+    }
+    .decision-card h4 { color: var(--blue); font-size: .82rem; margin: 0 0 .35rem; }
+    .decision-card p  { font-size: .7rem; opacity: .8; margin: 0; line-height: 1.5; }
+    .decision-card .why { color: var(--green); font-size: .62rem; margin-top: .35rem; }
+
+    /* ─── Alert simulation ─── */
+    .alert-screen {
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.2rem;
+      max-width: 520px;
+      margin: 1rem auto 0;
+      position: relative;
+    }
+    .alert-topbar {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .7rem;
+      color: var(--text);
+      opacity: .5;
+      margin-bottom: .8rem;
+    }
+    .alert-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+    .alert-dot.orange { background: #f0a500; }
+    .alert-dot.green  { background: var(--green); }
+
+    .alert-notification {
+      background: #1a0000;
+      border: 1px solid var(--red);
+      border-radius: 10px;
+      padding: .9rem 1rem;
+      display: none;
+      animation: slideIn .5s ease-out;
+    }
+    .alert-notification.visible { display: block; }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-15px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .alert-header { display: flex; align-items: center; gap: .5rem; }
+    .alert-icon   { font-size: 1.4rem; }
+    .alert-title  { color: var(--red); font-size: .9rem; font-weight: 700; }
+    .alert-plate  {
+      background: #fff;
+      color: #000;
+      font-size: 1.6rem;
+      font-weight: 900;
+      letter-spacing: .12em;
+      border-radius: 6px;
+      padding: .2rem .8rem;
+      margin: .7rem 0;
+      display: inline-block;
+      font-family: 'Arial Black', sans-serif;
+    }
+    .alert-meta   { font-size: .68rem; color: var(--text); opacity: .8; line-height: 1.7; }
+    .alert-meta span { color: var(--amber); }
+    .alert-pulse  {
+      display: inline-block;
+      width: 8px; height: 8px;
+      background: var(--red);
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+      margin-right: .4rem;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: .4; transform: scale(.6); }
+    }
+    .simulate-btn {
+      background: var(--red);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-family: var(--mono);
+      font-size: .8rem;
+      padding: .5rem 1.4rem;
+      cursor: pointer;
+      transition: background .2s;
+      margin-top: .8rem;
+    }
+    .simulate-btn:hover { background: #cc0000; }
+    .simulate-btn:disabled { background: var(--border); cursor: default; }
+
+    .map-placeholder {
+      background: #0a1a10;
+      border: 1px solid #1a3a20;
+      border-radius: 8px;
+      height: 60px;
+      margin-top: .6rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .65rem;
+      color: var(--green);
+      opacity: .6;
+    }
+
+    /* ─── Closing slide ─── */
+    .close-links {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-top: 1.4rem;
+      flex-wrap: wrap;
+    }
+    .close-link {
+      background: var(--bg2);
+      border: 1px solid var(--blue);
+      border-radius: 8px;
+      padding: .6rem 1.2rem;
+      color: var(--blue) !important;
+      font-size: .8rem;
+      text-decoration: none;
+    }
+
+    /* ─── Slide number ─── */
+    .reveal .slide-number { font-family: var(--mono); font-size: .65rem; }
+
+    /* ─── Scrollable section override ─── */
+    .scroll-slide { overflow-y: auto !important; max-height: 85vh; }
+  </style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 1 — COVER
+    ══════════════════════════════════════════ -->
+    <section>
+      <div class="cover2-wrap">
+        <div class="cover2-glow"></div>
+        <video src="videoCamaraIa.mp4" autoplay loop muted playsinline
+          style="height:110px; margin-bottom:1rem; display:block; margin-left:auto; margin-right:auto;
+                 -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 15%, transparent 80%);
+                 mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 15%, transparent 80%);"></video>
+        <div class="cover2-eyebrow">Propuesta de Arquitectura · Ceiba</div>
+        <div class="cover2-title">Sistema para Combatir<br/><span>el Hurto de Vehículos</span></div>
+        <div class="cover2-divider"></div>
+        <div class="cover2-sub">Plataforma distribuida, cloud-agnostic y de alta disponibilidad<br/>para detección en tiempo real de vehículos robados</div>
+        <div class="cover2-glass">
+          <div class="cover2-chips">
+            <span class="cover2-chip">.NET / C#</span>
+            <span class="cover2-chip">Kubernetes</span>
+            <span class="cover2-chip">MQTT · RabbitMQ</span>
+            <span class="cover2-chip">PostgreSQL · MinIO</span>
+            <span class="cover2-chip">OpenTelemetry · ELK</span>
+            <span class="cover2-chip">Cloud Agnostic</span>
+            <span class="cover2-chip">Open Source</span>
+          </div>
+        </div>
+        <div class="cover2-nav">↓ / → para navegar · ESC para vista general</div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 2 — EL PROBLEMA
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>El Problema</h2>
+      <p style="font-size:.82rem; text-align:left;">
+        Los países de América Latina enfrentan un volumen masivo de hurto vehicular.
+        Las cámaras de monitoreo existen, pero <strong style="color:var(--amber)">no están conectadas</strong>
+        con las bases de datos policiales — cada país opera en un silo.
+      </p>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-num">5+</div>
+          <div class="stat-label">Países con sistemas<br/>de autenticación<br/>incompatibles entre sí</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">2,500</div>
+          <div class="stat-label">Dispositivos en<br/>calle en el arranque<br/>500 por país</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">&lt;30s</div>
+          <div class="stat-label">Latencia máxima<br/>aceptable para<br/>alertar al policía</div>
+        </div>
+      </div>
+      <p style="font-size:.72rem; color:var(--text); opacity:.7; margin-top:1rem; text-align:left;">
+        Problema técnico central: conectar hardware heterogéneo en campo, microservicios en la nube
+        y bases de datos policiales de múltiples países — con cero tolerancia a pérdida de eventos.
+      </p>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 3 — LA SOLUCIÓN: 3 CAPAS
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>La Solución: 3 Capas</h2>
+      <div class="pillar-stack">
+        <div class="pillar edge fragment">
+          <div class="pillar-title">📷 Capa Edge — Dispositivos en Calle</div>
+          <div class="pillar-desc">Worker Service .NET en cada cámara. Patrón <strong>store-and-forward</strong> con SQLite — ningún evento se pierde aunque caiga la conectividad o la energía. Comunicación vía MQTT con mTLS.</div>
+        </div>
+        <div class="pillar cloud fragment">
+          <div class="pillar-title">☁️ Capa Cloud — Microservicios en Kubernetes</div>
+          <div class="pillar-desc">5 microservicios ASP.NET Core / Worker Service: Ingesta, Detección, Consulta, Notificaciones y Analytics. Desacoplados por RabbitMQ. Desplegados en Kubernetes — cloud-agnostic.</div>
+        </div>
+        <div class="pillar integ fragment">
+          <div class="pillar-title">🔗 Capa de Integración — Heterogeneidad por País</div>
+          <div class="pillar-desc">Patrón <strong>Adapter</strong> por país para normalizar bases de datos de vehículos hurtados. <strong>Keycloak</strong> como broker de identidades que federa LDAP, AD, SOAP y REST sin tocar el sistema central.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 4 — C4 NIVEL 1 (CONTEXTO)
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Diagrama de Contexto (C4 L1)</h2>
+      <p style="font-size:.72rem; text-align:left; opacity:.7;">Actores externos y relaciones de alto nivel con la plataforma central.</p>
+      <div class="mermaid-wrap">
+        <div class="mermaid">
+flowchart TD
+    U1[👮 Policía\nEntidades policiales de cada país]
+
+    subgraph SISTEMA["Sistema de Detección de Vehículos Robados"]
+        S[Plataforma Central]
+    end
+
+    E1[📷 Dispositivos de Monitoreo\nCámaras en calles de múltiples países]
+    E2[🗄️ BDs de Vehículos Robados\nUna por cada país, formato diferente]
+    E3[🔐 Sistemas de Autenticación\nLDAP, BD, SOAP, REST por país]
+
+    E1 -->|Envía placas, fotos\ny ubicación GPS| S
+    S -->|Consulta vehículos\nrobados cada 15 min| E2
+    S -->|Verifica identidad\ndel usuario| E3
+    U1 -->|Busca placas, ve mapa\ny recibe alertas| S
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 5 — C4 NIVEL 2 (CONTENEDORES)
+    ══════════════════════════════════════════ -->
+    <section class="scroll-slide">
+      <h2>Diagrama de Contenedores (C4 L2)</h2>
+      <p style="font-size:.72rem; text-align:left; opacity:.7;">Todos los bloques tecnológicos del sistema y sus relaciones.</p>
+      <div class="mermaid-wrap" style="max-height:75vh; overflow:auto;">
+        <div class="mermaid" style="min-width:1600px;">
+%%{init: {'flowchart': {'curve': 'linear'}, 'themeVariables': {'fontSize': '15px'}}}%%
+flowchart LR
+    E1["📷 Dispositivos\nCámaras"]
+    U1["👮 Policía"]
+
+    subgraph MENSAJERIA["📨 Mensajería"]
+        direction TB
+        MQTT["MQTT Broker\nMosquitto"]
+        MQ["Cola de Mensajes\nRabbitMQ"]
+    end
+
+    subgraph WORKERS["⚙️ Servicios Worker"]
+        direction TB
+        SVC_INGESTA["Servicio de Ingesta\nWorker Service .NET"]
+        SVC_DETECCION["Servicio de Detección\nWorker Service .NET"]
+        SVC_NOTIF["Servicio de Notificaciones\nWorker .NET + SignalR"]
+        ADAPTER["Adaptadores por País\nWorker Services .NET"]
+    end
+
+    subgraph APIS["🖥️ Frontend y APIs"]
+        direction TB
+        FE["Aplicación Web\nBlazor WebAssembly"]
+        GW["API Gateway\nYARP - .NET"]
+        KEYCLOAK["Gestión de Identidades\nKeycloak"]
+        SVC_CONSULTA["Servicio de Consulta\nASP.NET Core Web API"]
+        SVC_ANALYTICS["Servicio de Analytics\nASP.NET Core Web API"]
+    end
+
+    subgraph DATOS["🗃️ Almacenamiento"]
+        direction TB
+        DB[("PostgreSQL\nBase de datos central")]
+        STORAGE["Almacenamiento de Fotos\nMinIO"]
+        SUPERSET["Dashboards\nApache Superset"]
+    end
+
+    E2["🗄️ BDs Vehículos\nRobados por país"]
+    E3["🔐 Auth\npor país"]
+
+    E1 -->|"Eventos MQTT"| MQTT
+    MQTT --> SVC_INGESTA
+    SVC_INGESTA -->|"Publica evento"| MQ
+    MQ -->|"Consume evento"| SVC_DETECCION
+    SVC_DETECCION -->|"Consulta placa"| DB
+    SVC_DETECCION -->|"Publica alerta"| MQ
+    MQ -->|"Consume alerta"| SVC_NOTIF
+    SVC_NOTIF -->|"Alerta tiempo real"| FE
+    SVC_INGESTA -->|"Guarda evento"| DB
+    SVC_INGESTA -->|"Guarda foto"| STORAGE
+    ADAPTER -->|"Actualiza robados"| DB
+    ADAPTER -->|"Sincroniza 15 min"| E2
+    U1 -->|"Usa"| FE
+    FE -->|"Login"| KEYCLOAK
+    KEYCLOAK -->|"Verifica identidad"| E3
+    FE -->|"Peticiones"| GW
+    GW --> SVC_CONSULTA
+    GW --> SVC_ANALYTICS
+    SVC_CONSULTA -->|"Consulta eventos"| DB
+    SVC_CONSULTA -->|"Obtiene fotos"| STORAGE
+    SVC_ANALYTICS -->|"Consulta históricos"| DB
+    SVC_ANALYTICS --> SUPERSET
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 6 — DISPOSITIVO (EDGE)
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>El Dispositivo — Capa Edge</h2>
+      <div class="device-grid">
+        <div>
+          <div class="mermaid-wrap" style="max-height:300px;">
+            <div class="mermaid">
+flowchart TD
+    A[Hardware\nReconocimiento de placas]
+    subgraph WS[Worker Service .NET]
+        B[Recolector]
+        C[Sincronizador]
+    end
+    D[(SQLite\nLocal)]
+    E[Nube]
+    A -->|Placa+foto+GPS+hora| B
+    B -->|Guarda pendiente| D
+    C -->|Lee pendientes| D
+    C -->|MQTT cuando hay GSM| E
+    C -->|Marca enviado| D
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:.7rem;">
+          <div class="device-card">
+            <h4>📦 Store-and-Forward</h4>
+            <ul>
+              <li>Siempre guarda primero en <code>SQLite</code></li>
+              <li>Sincroniza cuando hay conexión GSM</li>
+              <li>Cero pérdida de eventos mientras el dispositivo está encendido</li>
+              <li>Batería de respaldo: 1h de captura garantizada ante falla de energía</li>
+            </ul>
+          </div>
+          <div class="device-card">
+            <h4>🔐 Seguridad mTLS</h4>
+            <ul>
+              <li>Cada cámara: certificado X.509 único</li>
+              <li>Autenticación mutua con el broker</li>
+              <li>Revocación remota desde la nube</li>
+            </ul>
+          </div>
+          <div class="device-card">
+            <h4>🔁 Idempotencia</h4>
+            <ul>
+              <li>Cada evento tiene <code>event_id</code> UUID</li>
+              <li><code>INSERT ... ON CONFLICT DO NOTHING</code></li>
+              <li>Duplicados descartados silenciosamente</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 7 — FLUJO DE DETECCIÓN (ANIMADO)
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Flujo de Detección — Paso a Paso</h2>
+      <p style="font-size:.72rem; opacity:.7; text-align:left;">Desde que la cámara detecta una placa hasta que el policía recibe la alerta.</p>
+
+      <div class="flow-steps" id="flowSteps">
+        <div class="flow-step" id="fs0">📷<br/><span class="flow-label">Cámara</span></div>
+        <div class="flow-arrow" id="fa0">→</div>
+        <div class="flow-step" id="fs1">📡<br/><span class="flow-label">MQTT Broker</span></div>
+        <div class="flow-arrow" id="fa1">→</div>
+        <div class="flow-step" id="fs2">📥<br/><span class="flow-label">Ingesta</span></div>
+        <div class="flow-arrow" id="fa2">→</div>
+        <div class="flow-step" id="fs3">🐇<br/><span class="flow-label">RabbitMQ</span></div>
+        <div class="flow-arrow" id="fa3">→</div>
+        <div class="flow-step" id="fs4">🔍<br/><span class="flow-label">Detección</span></div>
+        <div class="flow-arrow" id="fa4">→</div>
+        <div class="flow-step" id="fs5">🔔<br/><span class="flow-label">Notificaciones</span></div>
+        <div class="flow-arrow" id="fa5">→</div>
+        <div class="flow-step" id="fs6">👮<br/><span class="flow-label">Policía</span></div>
+      </div>
+
+      <div class="flow-detail" id="flowDetail">Presiona "Siguiente paso" para simular el flujo</div>
+
+      <div class="flow-btn-row">
+        <button class="flow-btn" onclick="flowNext()">▶ Siguiente paso</button>
+        <button class="flow-btn" style="margin-left:.5rem; border-color:var(--border); color:var(--text);" onclick="flowReset()">↺ Reiniciar</button>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 8 — INTEGRACIÓN POR PAÍS
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Integración por País</h2>
+      <div class="mermaid-wrap" style="max-height:380px;">
+        <div class="mermaid">
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
+flowchart LR
+    subgraph BDPAISES["📊 BDs de Vehículos Hurtados"]
+        BD1[("Colombia\nOracle / MySQL")]
+        BD2[("México\nREST API")]
+        BD3[("País N\nFormato nativo")]
+    end
+
+    subgraph SISTEMA["☁️ Sistema Central"]
+        direction TB
+        ADP1["Adaptador Colombia"]
+        ADP2["Adaptador México"]
+        ADP3["Adaptador País N"]
+        DB[("PostgreSQL\nunificado")]
+        GW["API Gateway · YARP"]
+        KEYCLOAK["Keycloak\nBroker Identidades"]
+    end
+
+    subgraph AUTHPAISES["🔐 Autenticación por País"]
+        AUTH1["Colombia\nLDAP / AD"]
+        AUTH2["México\nSOAP"]
+        AUTH3["País N\nOtro mecanismo"]
+    end
+
+    U1["👮 Policía"]
+
+    BD1 -->|"cada 15 min"| ADP1
+    BD2 -->|"cada 15 min"| ADP2
+    BD3 -->|"cada 15 min"| ADP3
+    ADP1 --> DB
+    ADP2 --> DB
+    ADP3 --> DB
+
+    U1 --> GW
+    GW --> KEYCLOAK
+    KEYCLOAK -->|"Token JWT"| GW
+    KEYCLOAK --> AUTH1
+    KEYCLOAK --> AUTH2
+    KEYCLOAK --> AUTH3
+        </div>
+      </div>
+      <div style="display:flex; gap:.8rem; margin-top:.7rem;">
+        <div style="flex:1; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:.6rem .8rem; font-size:.68rem;">
+          <strong style="color:var(--amber);">Patrón Adapter</strong><br/>
+          Un Worker .NET por país. Si una BD cambia su protocolo, solo se modifica ese adaptador — el sistema central no se toca.
+        </div>
+        <div style="flex:1; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:.6rem .8rem; font-size:.68rem;">
+          <strong style="color:var(--blue);">Keycloak como broker</strong><br/>
+          El sistema habla solo con Keycloak. Keycloak habla con LDAP, AD, SOAP, REST de cada país. JWT estándar para todos.
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 9 — TECH STACK VISUAL
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Stack Tecnológico</h2>
+      <div class="stack-section">
+        <div class="stack-section-title">📷 Edge — Dispositivos</div>
+        <div class="badge-grid">
+          <span class="badge blue">.NET Worker Service</span>
+          <span class="badge blue">SQLite</span>
+          <span class="badge blue">MQTTnet</span>
+          <span class="badge blue">Polly (retry)</span>
+          <span class="badge blue">X.509 mTLS</span>
+          <span class="badge blue">Eclipse Hawkbit</span>
+        </div>
+        <div class="stack-section-title">☁️ Cloud — Microservicios</div>
+        <div class="badge-grid">
+          <span class="badge amber">ASP.NET Core Web API</span>
+          <span class="badge amber">Worker Service .NET</span>
+          <span class="badge amber">MassTransit</span>
+          <span class="badge amber">SignalR</span>
+          <span class="badge amber">YARP API Gateway</span>
+          <span class="badge amber">Keycloak (JWT)</span>
+          <span class="badge amber">Blazor WebAssembly</span>
+          <span class="badge amber">BlazorLeaflet</span>
+        </div>
+        <div class="stack-section-title">🗄️ Datos &amp; Mensajería</div>
+        <div class="badge-grid">
+          <span class="badge green">PostgreSQL</span>
+          <span class="badge green">RabbitMQ + DLQ</span>
+          <span class="badge green">MinIO (S3-compat)</span>
+          <span class="badge green">Apache Superset</span>
+        </div>
+        <div class="stack-section-title">📊 Observabilidad</div>
+        <div class="badge-grid">
+          <span class="badge">Serilog → ELK Stack</span>
+          <span class="badge">OpenTelemetry (OTLP)</span>
+          <span class="badge">Prometheus + Grafana</span>
+          <span class="badge">Kibana</span>
+        </div>
+        <div class="stack-section-title">🚀 Infraestructura</div>
+        <div class="badge-grid">
+          <span class="badge">Kubernetes (EKS/AKS/GKE/on-prem)</span>
+          <span class="badge">Docker</span>
+          <span class="badge">Terraform (IaC)</span>
+          <span class="badge">GitHub Actions (CI/CD)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 10 — CALIDAD
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Consideraciones de Calidad</h2>
+      <div class="quality-grid">
+        <div class="quality-card">
+          <div class="quality-icon">⚡</div>
+          <div class="quality-name">Disponibilidad</div>
+          <div class="quality-desc">99.9% SLA<br/>Kubernetes auto-restart<br/>RabbitMQ como buffer</div>
+        </div>
+        <div class="quality-card">
+          <div class="quality-icon">📈</div>
+          <div class="quality-name">Escalabilidad</div>
+          <div class="quality-desc">HPA en Kubernetes<br/>Sharding PostgreSQL<br/>EMQX para &gt;10K devices</div>
+        </div>
+        <div class="quality-card">
+          <div class="quality-icon">🔐</div>
+          <div class="quality-name">Seguridad</div>
+          <div class="quality-desc">mTLS en cámaras<br/>JWT en APIs<br/>pais_id multitenancy<br/>Mínimo privilegio</div>
+        </div>
+        <div class="quality-card">
+          <div class="quality-icon">🛡️</div>
+          <div class="quality-name">Resiliencia</div>
+          <div class="quality-desc">Circuit Breaker Polly<br/>Retry exponencial<br/>DLQ con Prometheus alert</div>
+        </div>
+        <div class="quality-card">
+          <div class="quality-icon">📊</div>
+          <div class="quality-name">Observabilidad</div>
+          <div class="quality-desc">Logs ELK + TraceId<br/>Trazas OpenTelemetry<br/>Métricas Grafana</div>
+        </div>
+      </div>
+      <p style="font-size:.65rem; color:var(--text); opacity:.6; margin-top:1rem; text-align:center;">
+        Cada pilar resuelve una dimensión crítica para un sistema de seguridad pública operado 24/7 en múltiples países.
+      </p>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 11 — DECISIONES CLAVE
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Decisiones Clave de Diseño</h2>
+      <div class="decision-grid">
+        <div class="decision-card">
+          <h4>MQTT sobre HTTP para dispositivos IoT</h4>
+          <p>Conexión persistente, bajo consumo de ancho de banda, QoS integrado. HTTP requiere una conexión por evento — inviable con 1 GB RAM y GSM intermitente.</p>
+          <div class="why">→ MQTTnet (.NET) · Mosquitto → EMQX a escala</div>
+        </div>
+        <div class="decision-card">
+          <h4>Patrón Adapter por país (no ETL centralizado)</h4>
+          <p>Aísla la complejidad de cada integración. Cambios en una BD externa solo afectan su adaptador. Nuevos países = nuevo Worker Service, sin tocar el core.</p>
+          <div class="why">→ Un Worker .NET por país · Formato estándar hacia PostgreSQL</div>
+        </div>
+        <div class="decision-card">
+          <h4>Keycloak como broker de identidades</h4>
+          <p>Open source, cloud-agnostic, soporta nativamente LDAP/AD/SOAP/REST. El sistema nunca toca los sistemas de autenticación de cada país directamente.</p>
+          <div class="why">→ Descartados: Azure AD B2C (lock-in), Auth0 (costo), IdentityServer (desarrollo manual)</div>
+        </div>
+        <div class="decision-card">
+          <h4>Dead Letter Queue + monitoreo activo</h4>
+          <p>Mensajes corruptos no bloquean el flujo principal. 5 reintentos con backoff exponencial vía MassTransit, luego DLQ. Grafana alerta si DLQ &gt; 0.</p>
+          <div class="why">→ UseMessageRetry · Prometheus plugin RabbitMQ · Alert Grafana</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 12 — SIMULACIÓN DE ALERTA
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>¿Cómo ve el policía una alerta?</h2>
+      <p style="font-size:.72rem; opacity:.7; text-align:left;">Simulación de la notificación en tiempo real que recibe el agente vía SignalR.</p>
+
+      <div class="alert-screen">
+        <div class="alert-topbar">
+          <div class="alert-dot"></div>
+          <div class="alert-dot orange"></div>
+          <div class="alert-dot green"></div>
+          <span style="margin-left:.5rem;">Sistema Anti-Hurto · Colombia · Blazor WebAssembly</span>
+        </div>
+
+        <div class="alert-notification" id="alertNotif">
+          <div class="alert-header">
+            <div class="alert-icon">🚨</div>
+            <div>
+              <div class="alert-title"><span class="alert-pulse"></span>VEHÍCULO HURTADO DETECTADO</div>
+              <div style="font-size:.6rem; color:var(--text); opacity:.6;">Recibido via SignalR · hace 0s</div>
+            </div>
+          </div>
+          <div class="alert-plate">ABC-123</div>
+          <div class="alert-meta">
+            <span>📍 Ubicación:</span> Av. El Dorado con Cra 50, Bogotá<br/>
+            <span>🕐 Hora:</span> 14:32:07 · 8 mayo 2026<br/>
+            <span>📷 Cámara:</span> CAM-COL-0047 · confianza 97.3%<br/>
+            <span>⚠️ Reportado:</span> hurto 3 días ago · propietario notificado
+          </div>
+          <div class="map-placeholder">📍 Mapa cargando coordenadas GPS · Leaflet.js</div>
+        </div>
+
+        <div style="text-align:center;">
+          <button class="simulate-btn" id="simBtn" onclick="triggerAlert()">
+            🚨 Simular detección de vehículo hurtado
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 13 — CIERRE
+    ══════════════════════════════════════════ -->
+    <section>
+      <div style="text-align:center; padding: 1.5rem 1rem;">
+        <div style="font-size:.8rem; color:var(--amber); letter-spacing:.15em; text-transform:uppercase; margin-bottom:.6rem;">
+          Conclusión
+        </div>
+        <div class="cover-title" style="font-size:2rem;">Arquitectura lista para<br/>producción multi-país</div>
+        <div style="margin-top:1.2rem; font-size:.78rem; color:var(--text); opacity:.85; max-width:600px; margin-left:auto; margin-right:auto; line-height:1.7;">
+          El sistema resuelve los 3 desafíos críticos: <strong style="color:var(--amber)">cero pérdida de eventos</strong> en campo,
+          <strong style="color:var(--blue)">detección en tiempo real</strong> con menos de 30 segundos de latencia, e
+          <strong style="color:var(--green)">integración heterogénea</strong> por país sin lock-in de ningún proveedor.
+        </div>
+        <div class="close-links">
+          <a class="close-link" href="https://github.com/chetango/ChetangoStudentApi/blob/main/propuesta-arquitectura-ceiba.md" target="_blank" rel="noopener noreferrer">
+            📄 Propuesta completa en GitHub
+          </a>
+          <a class="close-link" href="https://github.com/chetango/ChetangoStudentApi" target="_blank" rel="noopener noreferrer" style="border-color:var(--green); color:var(--green) !important;">
+            💻 Repositorio
+          </a>
+        </div>
+        <div style="margin-top:1.8rem; font-size:.62rem; color:var(--border);">
+          Stack 100% .NET · Open Source · Cloud Agnostic · Kubernetes · GitHub Actions · Terraform
+        </div>
+        <div style="margin-top:2rem; border-top:1px solid var(--border); padding-top:1rem; font-size:.65rem; color:var(--text); opacity:.6; letter-spacing:.04em;">
+          Jorge Padilla &mdash; Ingeniero de Sistemas · Especialista en Desarrollo de Software
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /slides -->
+</div><!-- /reveal -->
+
+<!-- Reveal.js -->
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+
+<script>
+  // ─── Mermaid init ───────────────────────────────────
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor:       '#1f2937',
+      primaryTextColor:   '#c9d1d9',
+      primaryBorderColor: '#30363d',
+      lineColor:          '#58a6ff',
+      secondaryColor:     '#161b22',
+      tertiaryColor:      '#0d1117',
+      edgeLabelBackground:'#0d1117',
+      clusterBkg:         '#161b22',
+      clusterBorder:      '#30363d',
+      titleColor:         '#c9d1d9',
+      nodeTextColor:      '#c9d1d9',
+    },
+    flowchart: { curve: 'basis', padding: 15 },
+    fontSize: 13,
+  });
+
+  // ─── Reveal init ────────────────────────────────────
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    progress: true,
+    controls: true,
+    transition: 'fade',
+    transitionSpeed: 'fast',
+    plugins: [],
+  });
+
+  // Render Mermaid after each slide transition
+  Reveal.on('slidechanged', () => renderMermaid());
+  Reveal.on('ready',        () => renderMermaid());
+
+  function renderMermaid() {
+    document.querySelectorAll('.mermaid:not([data-rendered])').forEach(el => {
+      const code = el.textContent.trim();
+      el.setAttribute('data-rendered', '1');
+      mermaid.render('mermaid-' + Math.random().toString(36).slice(2), code)
+        .then(({ svg }) => { el.innerHTML = svg; })
+        .catch(e => console.warn('Mermaid render error', e));
+    });
+  }
+
+  // ─── Detection flow animation ───────────────────────
+  const flowMessages = [
+    { step: 0, msg: '📷 La cámara detecta la placa "ABC-123", captura foto y GPS. Genera <code>event_id</code> UUID y guarda en SQLite.' },
+    { step: 1, msg: '📡 El Sincronizador detecta GSM disponible y publica el evento al MQTT Broker vía MQTTnet (QoS 1).' },
+    { step: 2, msg: '📥 El Servicio de Ingesta recibe el evento. Ejecuta <code>INSERT ... ON CONFLICT DO NOTHING</code> — descarta duplicados. Guarda en PostgreSQL y MinIO.' },
+    { step: 3, msg: '🐇 El Servicio de Ingesta publica el evento en RabbitMQ. El mensaje queda persistido hasta ser procesado.' },
+    { step: 4, msg: '🔍 El Servicio de Detección consume el mensaje y busca la placa en la tabla de vehículos hurtados. ¡Coincidencia encontrada! Publica alerta en RabbitMQ.' },
+    { step: 5, msg: '🔔 El Servicio de Notificaciones consume la alerta y la entrega en tiempo real al frontend del policía vía SignalR.' },
+    { step: 6, msg: '👮 El policía recibe la notificación en la app Blazor con placa, foto, GPS y datos del hurto. Tiempo total: &lt; 30 segundos.' },
+  ];
+
+  let flowCurrent = -1;
+
+  function flowNext() {
+    if (flowCurrent >= flowMessages.length - 1) return;
+    if (flowCurrent >= 0) {
+      document.getElementById('fs' + flowCurrent).classList.remove('active');
+      document.getElementById('fs' + flowCurrent).classList.add('done');
+      if (flowCurrent < 6) {
+        document.getElementById('fa' + flowCurrent).classList.add('active');
+        document.getElementById('fa' + flowCurrent).style.color = 'var(--green)';
+      }
+    }
+    flowCurrent++;
+    const fs = document.getElementById('fs' + flowCurrent);
+    fs.classList.add('active');
+    document.getElementById('flowDetail').innerHTML = flowMessages[flowCurrent].msg;
+  }
+
+  function flowReset() {
+    flowCurrent = -1;
+    for (let i = 0; i <= 6; i++) {
+      const fs = document.getElementById('fs' + i);
+      fs.classList.remove('active', 'done');
+    }
+    for (let i = 0; i <= 5; i++) {
+      const fa = document.getElementById('fa' + i);
+      fa.classList.remove('active');
+      fa.style.color = '';
+    }
+    document.getElementById('flowDetail').innerHTML = 'Presiona "Siguiente paso" para simular el flujo';
+  }
+
+  // ─── Alert simulation ───────────────────────────────
+  function triggerAlert() {
+    const notif = document.getElementById('alertNotif');
+    const btn   = document.getElementById('simBtn');
+    notif.classList.add('visible');
+    btn.disabled = true;
+    btn.textContent = '✅ Alerta recibida por SignalR';
+  }
+</script>
+</body>
+</html>
