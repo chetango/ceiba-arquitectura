@@ -467,7 +467,7 @@
         <div class="cover2-eyebrow">Propuesta de Arquitectura · Ceiba</div>
         <div class="cover2-title">Sistema para Combatir<br/><span>el Hurto de Vehículos</span></div>
         <div class="cover2-divider"></div>
-        <div class="cover2-sub">Plataforma distribuida, cloud-agnostic y de alta disponibilidad<br/>para detección en tiempo real de vehículos robados</div>
+        <div class="cover2-sub">Plataforma distribuida para detección en tiempo real<br/>de vehículos hurtados — multi-país, multi-nube</div>
         <div class="cover2-glass">
           <div class="cover2-chips">
             <span class="cover2-chip">.NET / C#</span>
@@ -525,7 +525,7 @@
         </div>
         <div class="pillar cloud fragment">
           <div class="pillar-title">☁️ Capa Cloud — Microservicios en Kubernetes</div>
-          <div class="pillar-desc">5 microservicios ASP.NET Core / Worker Service: Ingesta, Detección, Consulta, Notificaciones y Analytics. Desacoplados por RabbitMQ. Desplegados en Kubernetes — cloud-agnostic.</div>
+          <div class="pillar-desc">5 microservicios ASP.NET Core / Worker Service: Ingesta, Detección, Consulta, Notificaciones y Analytics. Desacoplados por RabbitMQ. Los mismos contenedores corren en AWS, Azure o GCP sin cambiar una línea.</div>
         </div>
         <div class="pillar integ fragment">
           <div class="pillar-title">🔗 Capa de Integración — Heterogeneidad por País</div>
@@ -862,7 +862,7 @@ flowchart LR
         </div>
       </div>
       <p style="font-size:.65rem; color:var(--text); opacity:.6; margin-top:1rem; text-align:center;">
-        Cada pilar resuelve una dimensión crítica para un sistema de seguridad pública operado 24/7 en múltiples países.
+        Tres capas independientes: cada una se despliega, escala y mantiene por separado.
       </p>
     </section>
 
@@ -884,7 +884,7 @@ flowchart LR
         </div>
         <div class="decision-card">
           <h4>Keycloak como broker de identidades</h4>
-          <p>Open source, cloud-agnostic, soporta nativamente LDAP/AD/SOAP/REST. El sistema nunca toca los sistemas de autenticación de cada país directamente.</p>
+          <p>Open source, sin lock-in de proveedor. Habla LDAP, AD, SOAP y REST — el sistema nunca toca los sistemas de autenticación de cada país directamente.</p>
           <div class="why">→ Descartados: Azure AD B2C (lock-in), Auth0 (costo), IdentityServer (desarrollo manual)</div>
         </div>
         <div class="decision-card">
@@ -959,7 +959,7 @@ flowchart LR
           </a>
         </div>
         <div style="margin-top:1.8rem; font-size:.62rem; color:var(--border);">
-          Stack 100% .NET · Open Source · Cloud Agnostic · Kubernetes · GitHub Actions · Terraform
+          Stack 100% .NET · Open Source · Multi-nube · Kubernetes · GitHub Actions · Terraform
         </div>
         <div style="margin-top:1.4rem;">
           <button onclick="Reveal.slide(0)" style="background:transparent; border:1px solid var(--border); color:var(--text); font-size:.65rem; padding:.35rem .9rem; border-radius:6px; cursor:pointer; letter-spacing:.05em; opacity:.6; transition:opacity .2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">
