@@ -543,20 +543,27 @@
       <div class="mermaid-wrap">
         <div class="mermaid">
 flowchart TD
-    U1[👮 Policía\nEntidades policiales de cada país]
+    U1["👮 Policía\n[Person]\nEntidades policiales de cada país"]
 
-    subgraph SISTEMA["Sistema de Detección de Vehículos Robados"]
-        S[Plataforma Central]
+    subgraph SISTEMA["Sistema de Detección de Vehículos Robados\n[Software System]"]
+        S["Plataforma Central\n[Software System]\nDetecta vehículos hurtados y alerta a la policía"]
     end
 
-    E1[📷 Dispositivos de Monitoreo\nCámaras en calles de múltiples países]
-    E2[🗄️ BDs de Vehículos Robados\nUna por cada país, formato diferente]
-    E3[🔐 Sistemas de Autenticación\nLDAP, BD, SOAP, REST por país]
+    E1["📷 Dispositivos de Monitoreo\n[External System]\nCámaras en calles de múltiples países"]
+    E2["🗄️ BDs de Vehículos Robados\n[External System]\nUna por cada país, formato diferente"]
+    E3["🔐 Sistemas de Autenticación\n[External System]\nLDAP, BD, SOAP, REST por país"]
 
     E1 -->|Envía placas, fotos\ny ubicación GPS| S
     S -->|Consulta vehículos\nrobados cada 15 min| E2
     S -->|Verifica identidad\ndel usuario| E3
     U1 -->|Busca placas, ve mapa\ny recibe alertas| S
+
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999,stroke:#6b6b6b,color:#fff
+    class U1 person
+    class S system
+    class E1,E2,E3 external
         </div>
       </div>
     </section>
@@ -571,41 +578,41 @@ flowchart TD
         <div class="mermaid" style="min-width:1600px;">
 %%{init: {'flowchart': {'curve': 'linear'}, 'themeVariables': {'fontSize': '15px'}}}%%
 flowchart LR
-    E1["📷 Dispositivos\nCámaras"]
-    U1["👮 Policía"]
+    E1["📷 Dispositivos de Monitoreo\n[External System]\nCámaras IoT en calle, múltiples países"]
+    U1["👮 Policía\n[Person]\nEntidades policiales de cada país"]
 
     subgraph MENSAJERIA["📨 Mensajería"]
         direction TB
-        MQTT["MQTT Broker\nMosquitto"]
-        MQ["Cola de Mensajes\nRabbitMQ"]
+        MQTT["MQTT Broker\n[Container: Mosquitto]\nRecibe eventos de cámaras vía mTLS"]
+        MQ["Cola de Mensajes\n[Container: RabbitMQ]\nDesacopla microservicios, buffer de resiliencia"]
     end
 
     subgraph WORKERS["⚙️ Servicios Worker"]
         direction TB
-        SVC_INGESTA["Servicio de Ingesta\nWorker Service .NET"]
-        SVC_DETECCION["Servicio de Detección\nWorker Service .NET"]
-        SVC_NOTIF["Servicio de Notificaciones\nWorker .NET + SignalR"]
-        ADAPTER["Adaptadores por País\nWorker Services .NET"]
+        SVC_INGESTA["Servicio de Ingesta\n[Container: Worker Service .NET]\nPersiste eventos y fotos, publica en cola"]
+        SVC_DETECCION["Servicio de Detección\n[Container: Worker Service .NET]\nCompara placas contra vehículos hurtados"]
+        SVC_NOTIF["Servicio de Notificaciones\n[Container: Worker .NET + SignalR]\nEntrega alertas en tiempo real al frontend"]
+        ADAPTER["Adaptadores por País\n[Container: Worker Services .NET]\nNormaliza BDs heterogéneas al esquema central"]
     end
 
     subgraph APIS["🖥️ Frontend y APIs"]
         direction TB
-        FE["Aplicación Web\nReact + TypeScript"]
-        GW["API Gateway\nYARP - .NET"]
-        KEYCLOAK["Gestión de Identidades\nKeycloak"]
-        SVC_CONSULTA["Servicio de Consulta\nASP.NET Core Web API"]
-        SVC_ANALYTICS["Servicio de Analytics\nASP.NET Core Web API"]
+        FE["Aplicación Web\n[Container: React + TypeScript]\nConsulta historial y recibe alertas en tiempo real"]
+        GW["API Gateway\n[Container: YARP .NET]\nValida JWT y enruta peticiones"]
+        KEYCLOAK["Gestión de Identidades\n[Container: Keycloak]\nFedere autenticación de todos los países"]
+        SVC_CONSULTA["Servicio de Consulta\n[Container: ASP.NET Core Web API]\nExpone historial de avistamientos por placa"]
+        SVC_ANALYTICS["Servicio de Analytics\n[Container: ASP.NET Core Web API]\nExpone tendencias y dashboards analíticos"]
     end
 
     subgraph DATOS["🗃️ Almacenamiento"]
         direction TB
-        DB[("PostgreSQL\nBase de datos central")]
-        STORAGE["Almacenamiento de Fotos\nMinIO"]
-        SUPERSET["Dashboards\nApache Superset"]
+        DB[("PostgreSQL\n[Container: Relational DB]\nEventos, vehículos hurtados, alertas")]
+        STORAGE["MinIO\n[Container: Object Storage]\nFotos de vehículos avistados (S3-compatible)"]
+        SUPERSET["Apache Superset\n[Container: Analytics Tool]\nDashboards geoespaciales de tendencias"]
     end
 
-    E2["🗄️ BDs Vehículos\nRobados por país"]
-    E3["🔐 Auth\npor país"]
+    E2["🗄️ BDs Vehículos Robados\n[External System]\nUna por país, formato y tecnología heterogénea"]
+    E3["🔐 Sistemas de Autenticación\n[External System]\nLDAP, AD, SOAP, REST — uno por país"]
 
     E1 -->|"Eventos MQTT"| MQTT
     MQTT --> SVC_INGESTA
@@ -643,18 +650,25 @@ flowchart LR
           <div class="mermaid-wrap" style="max-height:300px;">
             <div class="mermaid">
 flowchart TD
-    A[Hardware\nReconocimiento de placas]
-    subgraph WS[Worker Service .NET]
-        B[Recolector]
-        C[Sincronizador]
+    A["Hardware\n[External Component]\nReconoce matrículas — exp. socket TCP localhost:7000"]
+    subgraph WS["Worker Service .NET\n[Container: .NET Worker Service]"]
+        B["Recolector\n[Component]\nLee eventos del socket cada 500ms"]
+        C["Sincronizador\n[Component]\nEnvía eventos pendientes vía MQTT"]
     end
-    D[(SQLite\nLocal)]
-    E[Nube]
+    D[("SQLite\n[Container: Embedded DB]\nPersistencia local de eventos pendientes")]
+    E["Sistema Central en la Nube\n[Software System]\nRecibe eventos vía MQTT + mTLS"]
     A -->|Placa+foto+GPS+hora| B
     B -->|Guarda pendiente| D
     C -->|Lee pendientes| D
     C -->|MQTT cuando hay GSM| E
     C -->|Marca enviado| D
+
+    classDef component fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999,stroke:#6b6b6b,color:#fff
+    classDef db fill:#2d6a4f,stroke:#1b4332,color:#fff
+    class B,C component
+    class A external
+    class D db
             </div>
           </div>
         </div>
@@ -862,28 +876,28 @@ flowchart TD
 %%{init: {'flowchart': {'curve': 'linear'}}}%%
 flowchart LR
     subgraph BDPAISES["📊 BDs de Vehículos Hurtados"]
-        BD1[("Colombia\nOracle / MySQL")]
-        BD2[("México\nREST API")]
-        BD3[("País N\nFormato nativo")]
+        BD1[("Colombia\n[External System]\nOracle / MySQL")]
+        BD2[("México\n[External System]\nREST API")]
+        BD3[("País N\n[External System]\nFormato nativo")]
     end
 
     subgraph SISTEMA["☁️ Sistema Central"]
         direction TB
-        ADP1["Adaptador Colombia"]
-        ADP2["Adaptador México"]
-        ADP3["Adaptador País N"]
-        DB[("PostgreSQL\nunificado")]
-        GW["API Gateway · YARP"]
-        KEYCLOAK["Keycloak\nBroker Identidades"]
+        ADP1["Adaptador Colombia\n[Container: Worker .NET]\nNormaliza datos al esquema estándar"]
+        ADP2["Adaptador México\n[Container: Worker .NET]\nNormaliza datos al esquema estándar"]
+        ADP3["Adaptador País N\n[Container: Worker .NET]\nNormaliza datos al esquema estándar"]
+        DB[("PostgreSQL\n[Container: Relational DB]\nVehículos robados unificados")]
+        GW["API Gateway\n[Container: YARP .NET]\nValida JWT y enruta peticiones"]
+        KEYCLOAK["Keycloak\n[Container: Identity Broker]\nFedere autenticación multi-país"]
     end
 
     subgraph AUTHPAISES["🔐 Autenticación por País"]
-        AUTH1["Colombia\nLDAP / AD"]
-        AUTH2["México\nSOAP"]
-        AUTH3["País N\nOtro mecanismo"]
+        AUTH1["Colombia\n[External System]\nLDAP / Active Directory"]
+        AUTH2["México\n[External System]\nSOAP"]
+        AUTH3["País N\n[External System]\nOtro mecanismo"]
     end
 
-    U1["👮 Policía"]
+    U1["👮 Policía\n[Person]\nEntidades policiales de cada país"]
 
     BD1 -->|"cada 15 min"| ADP1
     BD2 -->|"cada 15 min"| ADP2
