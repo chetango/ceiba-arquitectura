@@ -453,21 +453,15 @@
       z-index: 9999;
       white-space: nowrap;
       transition: opacity .4s;
-    }
-    .slide-doc-hint a {
       display: inline-flex;
       align-items: center;
       gap: .35rem;
-      background: rgba(88,166,255,0.10);
-      border: 1px solid rgba(88,166,255,0.35);
+      background: rgba(88,166,255,0.08);
+      border: 1px solid rgba(88,166,255,0.25);
       border-radius: 20px;
       padding: .28rem .9rem;
-      color: #58a6ff;
-      text-decoration: none;
-    }
-    .slide-doc-hint a:hover {
-      background: rgba(88,166,255,0.22);
-      border-color: #58a6ff;
+      color: rgba(88,166,255,0.7);
+      pointer-events: none;
     }
 
     @keyframes docPulse {
@@ -1184,9 +1178,7 @@ flowchart LR
 
 <!-- Nota discreta en todos los slides excepto el último -->
 <div class="slide-doc-hint" id="docHint">
-  <a href="https://github.com/chetango/ceiba-arquitectura/blob/main/plantilla-propuesta.md" target="_blank" rel="noopener noreferrer">
-    📄 Ver propuesta técnica completa →
-  </a>
+  📄 Propuesta técnica completa en el último slide
 </div>
 
 <!-- Reveal.js -->
@@ -1225,16 +1217,20 @@ flowchart LR
     plugins: [],
   });
 
-  // Ocultar hint en el último slide
+  // Ocultar hint en el primer slide (portada) y en el último
   Reveal.on('slidechanged', (e) => {
     const hint = document.getElementById('docHint');
     if (!hint) return;
     const total = Reveal.getTotalSlides();
     const current = Reveal.getState().indexh + 1;
-    hint.style.opacity = current === total ? '0' : '1';
+    hint.style.opacity = (current === 1 || current === total) ? '0' : '1';
     renderMermaid();
   });
-  Reveal.on('ready', () => renderMermaid());
+  Reveal.on('ready', () => {
+    const hint = document.getElementById('docHint');
+    if (hint) hint.style.opacity = '0'; // oculto en portada al inicio
+    renderMermaid();
+  });
 
   function renderMermaid() {
     document.querySelectorAll('.mermaid:not([data-rendered])').forEach(el => {
