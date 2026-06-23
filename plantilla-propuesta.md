@@ -438,6 +438,8 @@ flowchart TD
 
 ---
 
+## 3. Componentes Principales
+
 ### 3.1 Worker Service del Dispositivo (.NET)
 
 Programa instalado en cada cámara. Contiene dos responsabilidades internas:
@@ -450,7 +452,7 @@ Servidor de mensajería ligero que recibe las conexiones de los dispositivos. Co
 
 ### 3.3 Servicio de Ingesta (Worker Service .NET)
 
-Recibe eventos del MQTT Broker mediante **MQTTnet** (suscripción directa al topic del broker). Por cada evento recibido: persiste el evento en PostgreSQL, almacena la foto en MinIO y publica el evento en RabbitMQ usando **MassTransit** para procesamiento asíncrono. El canal MQTT (dispositivo → broker) y el canal de mensajería interna (broker → microservicios) son deliberadamente independientes: MQTTnet maneja la capa IoT y MassTransit maneja la capa de microservicios.
+Recibe eventos del MQTT Broker mediante **MQTTnet** (suscripción directa al topic del broker). Por cada evento recibido: persiste el evento en PostgreSQL, almacena la foto en MinIO y publica el evento en RabbitMQ usando **MassTransit** para procesamiento asíncrono. El canal MQTT (dispositivo → broker) y el canal de mensajería interna (broker → microservicios) son independientes por diseño: MQTTnet maneja la capa IoT y MassTransit maneja la capa de microservicios.
 
 **Idempotencia:** el patrón store-and-forward del dispositivo puede generar duplicados ante reconexiones GSM (el dispositivo reenvía eventos no confirmados). Para prevenirlos, cada evento incluye un `event_id` único (UUID generado en el dispositivo en el momento del registro). El Servicio de Ingesta realiza un `INSERT ... ON CONFLICT DO NOTHING` sobre ese campo en PostgreSQL — si el evento ya existe, la operación no hace nada y el servicio lo descarta silenciosamente sin propagar el duplicado a RabbitMQ.
 
@@ -508,11 +510,11 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 ### 4.1 Patrón Store-and-Forward en los dispositivos
 
-**Decisión:** siempre persistir primero en SQLite y sincronizar después, nunca enviar directo al sistema central.
+La decisión más crítica del diseño edge es esta: el Worker Service siempre persiste el evento en SQLite primero, y solo después lo envía al sistema central cuando hay conexión GSM disponible. Nunca al revés.
 
-**Justificación:** la conexión GSM puede interrumpirse en cualquier momento y la batería de respaldo dura 1 hora ante fallas de energía. Sin persistencia local, todos los eventos capturados durante esa hora antes del apagado se perderían permanentemente. El patrón store-and-forward garantiza que los eventos registrados mientras el dispositivo esté operativo no se pierdan — independientemente de cuándo vuelva la conectividad. Los eventos no capturables durante un apagado prolongado son una limitación de hardware conocida y asumida. SQLite no requiere instalación adicional, se embebe en el ejecutable .NET y crea su archivo de datos automáticamente al primer arranque.
+La razón es simple: la batería de respaldo dura 1 hora y la conectividad GSM puede caer en cualquier momento. Si el dispositivo enviara directo sin persistencia local, todos los eventos capturados antes de un apagado se perderían para siempre. Con SQLite embebido — que no requiere instalación, vive en el mismo ejecutable .NET y arranca solo — los eventos sobreviven cualquier caída de red o energía mientras el dispositivo esté encendido. Los eventos no capturables durante un apagado prolongado son una limitación física del hardware, no un problema de software.
 
-**Alternativa considerada:** enviar directo cuando hay conexión y descartar cuando no. Descartada porque compromete la integridad del dato, que es crítica en un sistema de seguridad pública.
+Enviar directo y descartar cuando no hay conexión fue la alternativa evaluada. Se descartó porque en un sistema de seguridad pública, perder eventos no es aceptable.
 
 ### 4.2 MQTT sobre HTTP para la comunicación de dispositivos
 
@@ -520,7 +522,7 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Justificación:** MQTT está diseñado específicamente para dispositivos IoT con recursos limitados e internet inestable. Mantiene una conexión persistente, consume menos ancho de banda y tiene niveles de garantía de entrega integrados (QoS). HTTP abriría y cerraría una conexión por cada evento, siendo más costoso en recursos para hardware con 1 GB de RAM y conexión GSM.
 
-**Fotos en el payload MQTT:** en la escala inicial (500 KB por foto como máximo, 1 foto por evento, GSM con conectividad variable) embeber la foto en el payload MQTT es viable: MQTTnet con QoS 1 garantiza la entrega y el patrón store-and-forward del dispositivo asegura que los reintentos ante pérdidas de conectividad incluyen la foto. Un único canal simplifica el Worker Service — no requiere lógica de coordinación entre el envío del evento y el upload del binario.
+**Fotos en el payload MQTT:** en la escala inicial (500 KB por foto como máximo, 1 foto por evento, GSM con conectividad variable) embeber la foto en el payload MQTT es viable: MQTTnet con QoS 1 garantiza la entrega y el patrón store-and-forward del dispositivo asegura que los reintentos ante pérdidas de conectividad incluyen la foto. Un único canal simplifica el Worker Service — no se necesita lógica de coordinación entre el envío del evento y el upload del binario.
 
 **Camino de evolución si el volumen de fotos escala:** si en el futuro el tamaño promedio de las fotos aumenta, el volumen de dispositivos crece sustancialmente o se requieren uploads más rápidos y resilientes, la arquitectura migra a un modelo de dos canales: (1) el evento de texto se sigue enviando vía MQTT (~1 KB, instantáneo), y (2) la foto se sube vía HTTP PUT usando una **pre-signed URL de MinIO** — el Servicio de Ingesta genera esa URL al recibir el evento y la devuelve al dispositivo por un MQTT response topic; el dispositivo hace el PUT directamente a MinIO, que soporta uploads resumibles. Este cambio es local al Worker Service del dispositivo y al Servicio de Ingesta; no modifica el resto de la arquitectura.
 
@@ -528,22 +530,20 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 ### 4.3 Patrón Adapter para integración con bases de datos heterogéneas
 
-**Decisión:** un Worker Service .NET por cada país que normaliza los datos al esquema estándar del sistema.
+Cada país tiene su BD en una tecnología distinta. La tentación es construir un ETL centralizado que sepa leer todos los formatos. El problema con ese enfoque es que cualquier cambio en una fuente externa — un campo renombrado, un endpoint migrado — afecta al componente completo y puede romper las integraciones de los otros países.
 
-**Justificación:** cada país tiene su BD en diferente tecnología y formato. Un adaptador por país aísla la complejidad de cada integración. Si una BD externa cambia su estructura o protocolo, solo se modifica el adaptador de ese país sin afectar el resto del sistema. Nuevos países se incorporan con un nuevo adaptador sin tocar código existente.
-
-**Alternativa considerada:** un ETL centralizado que conociera todos los formatos. El problema es que cualquier cambio en una fuente externa afecta al componente completo — no escala a medida que crece el número de países.
+La decisión es un Worker Service por país. Cada adaptador conoce únicamente el protocolo de su fuente, extrae los datos y los normaliza al esquema común. Si Colombia migra su BD de Oracle a PostgreSQL, solo cambia el adaptador de Colombia — el resto del sistema no se entera. Incorporar un nuevo país es desarrollar un nuevo Worker Service, no tocar código existente.
 
 ### 4.4 Keycloak como broker de identidades
 
 **Decisión:** usar Keycloak para federar todos los sistemas de autenticación externos.
 
-**Justificación:** las entidades policiales usan mecanismos heterogéneos (LDAP, BD, SOAP, REST). Keycloak soporta todos nativamente sin desarrollo adicional. Es open source, cloud-agnostic y emite tokens JWT estándar. El sistema no administra usuarios — solo consume identidades ya existentes en cada país.
+**Justificación:** las entidades policiales usan mecanismos heterogéneos (LDAP, BD, SOAP, REST). Keycloak soporta todos nativamente sin desarrollo adicional. Es open source, cloud-agnostic y emite tokens JWT estándar. El sistema no administra usuarios — solo consume identidades ya existentes en cada país. Este punto de federación centralizado simplifica drásticamente la seguridad: el resto de los microservicios solo validan un JWT, sin importar de dónde viene el usuario.
 
-**Alternativas consideradas:**
-- **Azure AD B2C:** buena integración con .NET, pero genera dependencia con el ecosistema Microsoft — que es precisamente lo que esta arquitectura busca evitar.
-- **Auth0 / Okta:** muy robustos pero tienen costo de licencia y son propietarios.
-- **IdentityServer:** open source y .NET nativo, pero requiere desarrollo manual de conectores para cada mecanismo externo — mayor riesgo en un componente de seguridad crítica.
+**Alternativas evaluadas:**
+- **Azure AD B2C:** sólido y bien integrado con .NET, pero introduce dependencia con el ecosistema Microsoft, que va en contra del requisito cloud-agnostic.
+- **Auth0 / Okta:** muy maduros, pero con costo de licencia y vendor lock-in.
+- **IdentityServer:** open source y .NET nativo, pero requiere implementar manualmente cada conector externo (LDAP, SOAP, REST) — demasiado riesgo en un componente de seguridad.
 
 ### 4.5 Kubernetes como plataforma de orquestación
 
@@ -571,9 +571,9 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Decisión:** usar Apache Superset sobre PostgreSQL para dashboards analíticos.
 
-**Justificación:** Superset es open source, sin costo de licencia, y tiene soporte nativo para visualizaciones geoespaciales. Los mapas de calor son la visualización más útil para identificar patrones de concentración de hurtos.
+**Justificación:** Superset se conecta directamente a PostgreSQL sin necesidad de una capa ETL adicional. Tiene soporte nativo para visualizaciones geoespaciales — los mapas de calor son la visualización más útil para identificar concentración de hurtos y rutas de escape. Es open source, sin costo de licencia, y la comunidad es activa. En el volumen inicial (2.500 eventos/seg) PostgreSQL con particionamiento por fecha soporta las queries analíticas sin problemas. Si el volumen escala a decenas de miles de dispositivos, el camino natural es agregar **TimescaleDB** (extensión de PostgreSQL para time-series) sin cambiar ni Superset ni el esquema.
 
-**Alternativa considerada:** Power BI — buena integración con el ecosistema Microsoft, pero tiene costo de licencia y no encaja en una estrategia multi-nube.
+**Alternativa considerada:** Power BI — tiene buenas visualizaciones y se integra bien con .NET, pero tiene costo de licencia y genera dependencia con el ecosistema Microsoft.
 
 ### 4.9 React Leaflet para mapas
 
@@ -619,6 +619,10 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Alternativa considerada:** saga con compensación manual. Descartada por mayor complejidad de implementación y menor confiabilidad frente al Outbox integrado de MassTransit.
 
+---
+
+## 5. Consideraciones de Calidad
+
 ### 5.1 Disponibilidad
 
 - **Objetivo:** 99.9% de disponibilidad (máximo ~8 horas de downtime al año).
@@ -627,10 +631,13 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 ### 5.2 Escalabilidad
 
 - **Horizontal:** Kubernetes Horizontal Pod Autoscaler escala automáticamente los Servicios de Ingesta, Detección y Consulta ante picos de carga.
-- **Datos:** para escala global, PostgreSQL puede particionarse (sharding) por país o región. Los datos históricos mayores a 2 años se archivan en MinIO y se eliminan de la base de datos activa para mantener el rendimiento de las consultas.
+- **Datos:** para escala global, PostgreSQL puede particionarse por país y rango de fecha. Para cargas analíticas intensas sobre datos de series de tiempo, se agrega **TimescaleDB** — una extensión de PostgreSQL que no requiere cambiar el esquema ni las queries existentes, solo mejora el rendimiento de queries temporales en órdenes de magnitud. Los datos históricos mayores a 2 años se archivan en MinIO en formato comprimido y se eliminan de la base de datos activa.
 - **Dispositivos:** la arquitectura soporta crecer de 2.500 a decenas de miles de dispositivos sin cambios arquitectónicos. Si el volumen lo requiere, Mosquitto se reemplaza por EMQX.
 
 ### 5.3 Seguridad
+
+**Gestión de secretos:**
+Ninguna credencial vive en el código ni en variables de entorno no gestionadas. Los secretos (credenciales de BD, certificados, tokens de integración) se inyectan en los pods vía **Kubernetes Secrets** cifrados en etcd, o mediante **HashiCorp Vault** para rotación automática en entornos de alta seguridad. Los certificados mTLS de los dispositivos son gestionados por **cert-manager** en Kubernetes, con renovación automática antes del vencimiento.
 
 **Comunicación de dispositivos — mTLS:**
 Cada dispositivo tiene un certificado digital único emitido al momento de su instalación. La comunicación con el MQTT Broker usa mTLS (TLS mutuo) — tanto el servidor como el dispositivo se autentican mutuamente. Un dispositivo sin certificado válido no puede conectarse. Si un dispositivo es comprometido, su certificado se revoca desde el sistema central y queda bloqueado inmediatamente. Implementado en .NET via X.509 certificates, con soporte nativo del runtime.
@@ -688,6 +695,10 @@ Pirámide de pruebas aplicada en todos los microservicios .NET:
 
 **Cobertura objetivo:** &gt;80% en capas Application y Domain. La capa Infrastructure se cubre con integration tests.
 
+---
+
+## 6. Supuestos
+
 1. **Escala inicial:** el sistema arranca con 5 países latinoamericanos y aproximadamente 500 dispositivos por país (2.500 dispositivos en total), con proyección de escalar a 50+ países y decenas de miles de dispositivos.
 
 2. **Volumen de eventos:** cada dispositivo genera en promedio 1 evento por segundo en hora pico (tráfico urbano denso), lo que representa aproximadamente 2.500 eventos por segundo a nivel global en el arranque.
@@ -700,7 +711,7 @@ Pirámide de pruebas aplicada en todos los microservicios .NET:
 
 6. **Latencia de alertas:** una detección de vehículo hurtado debe generar una alerta visible al policía en menos de 30 segundos desde que la cámara registra el evento.
 
-7. **Sincronización de vehículos hurtados:** se eligió una cadencia de sincronización de 15 minutos como punto de equilibrio deliberado entre frescura de datos y carga sobre los sistemas externos. Las BDs de vehículos hurtados son sistemas operativos de entidades policiales de cada país — sistemas heterogéneos (Oracle, REST, archivos), con sus propios ciclos de actualización y potenciales restricciones de tasa de consulta; forzar una cadencia más alta (ej. cada minuto) multiplicaría la carga sobre esos sistemas por 15x sin una ganancia proporcional en detección, ya que el proceso de reporte — desde que la víctima nota el hurto hasta que la policía lo registra en su sistema interno — toma típicamente entre 20 y 45 minutos; los 15 minutos de latencia de sincronización no son el cuello de botella real. El riesgo residual es conocido y acotado: en el peor caso, un vehículo recién registrado como hurtado tarda hasta 15 minutos en ser detectable por el sistema — limitación explícitamente asumida en el diseño.
+7. **Sincronización de vehículos hurtados:** la cadencia de 15 minutos fue una elección con trade-off consciente. Forzar una cadencia mayor (por ejemplo, cada minuto) multiplicaría la carga sobre los sistemas policiales por 15x sin una ganancia proporcional: el proceso real de reporte de hurto — desde que la víctima lo nota hasta que queda registrado en el sistema policial — toma entre 20 y 45 minutos. Los 15 minutos de latencia de sincronización no son el cuello de botella real. El riesgo residual está acotado y explícitamente asumido: un vehículo recién registrado puede tardar hasta 15 minutos en ser detectable. Si un país ofrece webhook o CDC, el adaptador cambia a modo push y ese riesgo desaparece.
 
 8. **Disponibilidad requerida:** 99.9% de disponibilidad del sistema central (máximo ~8 horas de downtime al año). Es el mínimo razonable para un sistema de seguridad pública.
 
