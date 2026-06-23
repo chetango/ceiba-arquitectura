@@ -443,7 +443,20 @@
       text-decoration: none;
     }
 
-    /* ─── Slide number ─── */
+    .slide-doc-hint {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: .58rem;
+      color: rgba(255,255,255,0.18);
+      font-family: var(--mono);
+      pointer-events: none;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    /* ─── Scroll hint override ─── */
     .reveal .slide-number { font-family: var(--mono); font-size: .65rem; }
 
     /* ─── Scrollable section override ─── */
@@ -478,13 +491,6 @@
             <span class="cover2-chip">Cloud Agnostic</span>
             <span class="cover2-chip">Open Source</span>
           </div>
-        </div>
-        <div style="margin-top:.9rem;">
-          <a href="https://github.com/chetango/ceiba-arquitectura/blob/main/plantilla-propuesta.md"
-             target="_blank" rel="noopener noreferrer"
-             style="display:inline-flex; align-items:center; gap:.4rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:.35rem 1rem; font-size:.68rem; color:#c9d1d9; text-decoration:none; font-family:var(--mono);">
-            📄 Ver propuesta técnica completa →
-          </a>
         </div>
         <div class="cover2-nav" style="margin-top:.6rem;">↓ / → para navegar · ESC para vista general</div>
       </div>
@@ -1120,8 +1126,9 @@ flowchart LR
           <strong style="color:var(--green)">integración heterogénea</strong> por país sin lock-in de ningún proveedor.
         </div>
         <div class="close-links">
-          <a class="close-link" href="https://github.com/chetango/ceiba-arquitectura/blob/main/plantilla-propuesta.md" target="_blank" rel="noopener noreferrer">
-            📄 Propuesta completa
+          <a class="close-link" href="https://github.com/chetango/ceiba-arquitectura/blob/main/plantilla-propuesta.md" target="_blank" rel="noopener noreferrer"
+             style="font-size:.95rem; padding:.8rem 1.8rem;">
+            📄 Propuesta técnica completa
           </a>
           <a class="close-link" href="https://github.com/chetango/ceiba-arquitectura" target="_blank" rel="noopener noreferrer" style="border-color:var(--green); color:var(--green) !important;">
             💻 Repositorio
@@ -1135,6 +1142,9 @@ flowchart LR
 
   </div><!-- /slides -->
 </div><!-- /reveal -->
+
+<!-- Nota discreta en todos los slides excepto el último -->
+<div class="slide-doc-hint" id="docHint">Propuesta técnica completa disponible en el último slide →</div>
 
 <!-- Reveal.js -->
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
@@ -1172,9 +1182,16 @@ flowchart LR
     plugins: [],
   });
 
-  // Render Mermaid after each slide transition
-  Reveal.on('slidechanged', () => renderMermaid());
-  Reveal.on('ready',        () => renderMermaid());
+  // Ocultar hint en el último slide
+  Reveal.on('slidechanged', (e) => {
+    const hint = document.getElementById('docHint');
+    if (!hint) return;
+    const total = Reveal.getTotalSlides();
+    const current = Reveal.getState().indexh + 1;
+    hint.style.opacity = current === total ? '0' : '1';
+    renderMermaid();
+  });
+  Reveal.on('ready', () => renderMermaid());
 
   function renderMermaid() {
     document.querySelectorAll('.mermaid:not([data-rendered])').forEach(el => {
