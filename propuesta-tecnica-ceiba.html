@@ -1010,6 +1010,7 @@ flowchart LR
           <span class="badge green">RabbitMQ + DLQ</span>
           <span class="badge green">MinIO (S3-compat)</span>
           <span class="badge green">Apache Superset</span>
+          <span class="badge green">TimescaleDB (escala)</span>
         </div>
         <div class="stack-section-title">📊 Observabilidad</div>
         <div class="badge-grid">
@@ -1042,12 +1043,12 @@ flowchart LR
         <div class="quality-card">
           <div class="quality-icon">📈</div>
           <div class="quality-name">Escalabilidad</div>
-          <div class="quality-desc">HPA en Kubernetes<br/>Sharding PostgreSQL<br/>EMQX para &gt;10K devices</div>
+          <div class="quality-desc">HPA en Kubernetes<br/>Particionamiento PostgreSQL<br/>TimescaleDB para time-series<br/>EMQX para &gt;10K devices</div>
         </div>
         <div class="quality-card">
           <div class="quality-icon">🔐</div>
           <div class="quality-name">Seguridad</div>
-          <div class="quality-desc">mTLS en cámaras<br/>JWT en APIs<br/>pais_id multitenancy<br/>Mínimo privilegio</div>
+          <div class="quality-desc">mTLS en cámaras<br/>JWT en APIs<br/>pais_id multitenancy<br/>Mínimo privilegio<br/>K8s Secrets · Vault<br/>cert-manager mTLS</div>
         </div>
         <div class="quality-card">
           <div class="quality-icon">🛡️</div>
@@ -1095,6 +1096,11 @@ flowchart LR
           <h4>Outbox Pattern — consistencia transaccional</h4>
           <p>El Servicio de Ingesta hace INSERT en PostgreSQL y publica en RabbitMQ en la misma transacción lógica. Sin Outbox, un fallo entre ambas operaciones genera inconsistencia.</p>
           <div class="why">→ MassTransit Outbox integrado · tabla outbox en PostgreSQL · proceso relay automático</div>
+        </div>
+        <div class="decision-card">
+          <h4>Apache Superset para analytics</h4>
+          <p>Conecta directo a PostgreSQL sin ETL adicional. Soporte nativo para mapas de calor geoespaciales. Open source, sin licencia. Camino de evolución: agregar TimescaleDB cuando escale — sin cambiar esquema ni queries.</p>
+          <div class="why">→ Descartado: Power BI (licencia + lock-in Microsoft)</div>
         </div>
         <div class="decision-card">
           <h4>React + TypeScript en lugar de Blazor WASM</h4>
