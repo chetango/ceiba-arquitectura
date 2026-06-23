@@ -71,7 +71,7 @@ flowchart LR
 
     subgraph APIS["🖥️ Frontend y APIs"]
         direction TB
-        FE["Aplicación Web\nBlazor WebAssembly"]
+        FE["Aplicación Web\nReact + TypeScript"]
         GW["API Gateway\nYARP - .NET"]
         KEYCLOAK["Gestión de Identidades\nKeycloak"]
         SVC_CONSULTA["Servicio de Consulta\nASP.NET Core Web API"]
@@ -139,7 +139,9 @@ flowchart TD
     C -->|Marca evento como enviado| D
 ```
 
-**Descripción:** El Worker Service en .NET es el único software que se instala en cada dispositivo. Internamente tiene dos responsabilidades: el Recolector de Eventos consulta periódicamente el componente de hardware que ya reconoce las matrículas y persiste cada evento en SQLite (base de datos local en disco). El Sincronizador verifica constantemente la disponibilidad de la conexión GSM y, cuando la hay, envía los eventos pendientes al sistema central via MQTT, marcándolos como enviados en SQLite. Este patrón garantiza que ningún evento capturado mientras el dispositivo esté encendido se pierda ante fallas de conectividad. Ante fallas de energía, se preservan todos los eventos registrados hasta el momento del apagado — la batería de respaldo de 1 hora maximiza la ventana de captura antes del apagado.
+**Mecanismo de acceso al hardware:** el componente de reconocimiento de matrículas ya integrado en el dispositivo expone su información mediante un **socket TCP local en `localhost:7000`**. El Recolector hace polling cada 500 ms usando `TcpClient` en .NET, leyendo frames delimitados por longitud (4 bytes de longitud + payload JSON). Esta elección evita el overhead de HTTP en loopback con solo 1 GB de RAM. Si el hardware en un modelo de dispositivo diferente expone un named pipe de Linux, el mismo Worker Service puede adaptarse cambiando únicamente el transport, sin modificar la lógica de negocio.
+
+**Descripción:** El Worker Service en .NET es el único software que se instala en cada dispositivo. Internamente tiene dos responsabilidades: el Recolector de Eventos se conecta al socket local del hardware, lee las matrículas reconocidas y persiste cada evento (placa, foto, GPS, hora) en SQLite. El Sincronizador verifica constantemente la disponibilidad de la conexión GSM y, cuando la hay, envía los eventos pendientes al sistema central via MQTT, marcándolos como enviados en SQLite. Este patrón garantiza que ningún evento capturado mientras el dispositivo esté encendido se pierda ante fallas de conectividad. Ante fallas de energía, se preservan todos los eventos registrados hasta el momento del apagado — la batería de respaldo de 1 hora maximiza la ventana de captura antes del apagado.
 
 ---
 
@@ -190,7 +192,7 @@ flowchart LR
     KEYCLOAK -->|"Protocolo nativo"| AUTH3
 ```
 
-**Descripción:** La integración tiene dos dimensiones. Para los datos de vehículos hurtados, se implementa el patrón Adapter — un Worker Service en .NET por cada país que conoce el protocolo y formato de la fuente de datos de ese país, extrae la información y la normaliza al esquema estándar del sistema. Para la autenticación, Keycloak actúa como broker de identidades: el sistema solo habla con Keycloak, y Keycloak se encarga de hablar con el sistema de autenticación de cada país sin importar el protocolo que use.
+**Descripción:** La integración tiene dos dimensiones. Para los datos de vehículos hurtados, se implementa el patrón Adapter — un Worker Service en .NET por cada país que conoce el protocolo y formato de la fuente de datos de ese país, extrae la información y la normaliza al esquema estándar del sistema. La sincronización soporta dos modos: **pull** (polling cada 15 minutos, por defecto para países sin notificaciones activas) y **push** (si el país ofrece webhook o CDC, el adaptador se suscribe y actualiza en segundos). Ambos modos coexisten — el adaptador elige el modo disponible para su fuente sin modificar el sistema central. Para la autenticación, Keycloak actúa como broker de identidades: el sistema solo habla con Keycloak, y Keycloak se encarga de hablar con el sistema de autenticación de cada país sin importar el protocolo que use.
 
 ---
 
@@ -392,9 +394,49 @@ flowchart TD
 
 **Descripción:** Cada microservicio .NET expone dos canales de observabilidad: logs estructurados en JSON via Serilog (que incluyen el `TraceId` del evento para correlacionar entre servicios) y métricas via un endpoint `/metrics` estándar de Prometheus. RabbitMQ expone sus propias métricas via el plugin oficial de Prometheus, incluyendo la longitud de cada cola — las DLQs incluidas. Grafana consume esas métricas y tiene configurada una alerta que se dispara cuando cualquier DLQ acumula mensajes, notificando al equipo de operaciones para inspección y reinyección. OpenTelemetry recolecta las trazas distribuidas y las almacena en Elasticsearch, donde Kibana permite seguir el recorrido completo de cualquier evento usando su `TraceId`.
 
----
+### 2.9 Arquitectura Interna de Microservicios — Clean Architecture + CQRS
 
-## 3. Componentes Principales
+Estructura de capas aplicada en cada microservicio .NET para garantizar separación de responsabilidades y testabilidad.
+
+```mermaid
+flowchart TD
+    subgraph API["API / Worker (Entry Point)"]
+        CTR["Controllers · MQTT Consumers\nRabbitMQ Consumers"]
+    end
+    subgraph APP["Application Layer"]
+        CMD["Commands\nIngestEventCommand\nDetectStolenVehicleCommand"]
+        QRY["Queries\nGetPlateHistoryQuery"]
+        BHV["Pipeline Behaviors\nValidation · Logging"]
+    end
+    subgraph DOM["Domain Layer"]
+        ENT["Entities & Aggregates\nVehicleEvent · StolenVehicle"]
+        REP["IRepository interfaces"]
+    end
+    subgraph INF["Infrastructure Layer"]
+        EFC["EF Core Repositories\nPostgreSQL"]
+        MSG["MassTransit Publishers\nRabbitMQ"]
+        S3C["MinIO Client\nFoto storage"]
+    end
+
+    CTR -->|"IMediator.Send()"| CMD
+    CTR -->|"IMediator.Send()"| QRY
+    CMD --> BHV
+    QRY --> BHV
+    BHV --> ENT
+    BHV --> REP
+    REP --> EFC
+    CMD --> MSG
+    CMD --> S3C
+```
+
+**Principios aplicados:**
+- **Domain:** entidades y reglas de negocio sin ninguna dependencia externa.
+- **Application:** casos de uso con **MediatR**. Un handler = un caso de uso. Validación con **FluentValidation** como pipeline behavior.
+- **Infrastructure:** implementaciones concretas de repositorios (EF Core), publishers (MassTransit) y storage (MinIO) — detalles intercambiables sin tocar el dominio.
+- **CQRS:** `IngestEventCommand` (escribe evento + publica en RabbitMQ via Outbox), `DetectStolenVehicleCommand` (compara placa, publica alerta), `GetPlateHistoryQuery` (historial paginado con URLs de fotos).
+- **Repository + Unit of Work:** repositorios genéricos por agregado. Índices compuestos `(matricula, fecha_evento)` en PostgreSQL para las queries más frecuentes.
+
+---
 
 ### 3.1 Worker Service del Dispositivo (.NET)
 
@@ -440,9 +482,9 @@ Punto de entrada único para el frontend. Valida el Token JWT en cada petición 
 
 Broker de identidades que federa los sistemas de autenticación de cada entidad policial (LDAP, Active Directory, SOAP, REST). El sistema solo habla con Keycloak; Keycloak se encarga de la comunicación con cada sistema externo. Emite tokens JWT estándar usados por el API Gateway.
 
-### 3.11 Aplicación Web — Blazor WebAssembly
+### 3.11 Aplicación Web — React + TypeScript
 
-Frontend desarrollado en C# con Blazor WebAssembly, manteniendo el stack 100% .NET. Integra **BlazorLeaflet** (wrapper de Leaflet.js) para la visualización de eventos en mapa. Recibe alertas en tiempo real via SignalR sin necesidad de recargar la página.
+Frontend desarrollado en **React + TypeScript** (empaquetado con Vite). Integra **React Leaflet** para la visualización de eventos en mapa y el cliente JavaScript oficial de SignalR (`@microsoft/signalr`) para recibir alertas en tiempo real sin necesidad de recargar la página. La decisión de React sobre Blazor WebAssembly se fundamenta en el ecosistema maduro, bundle inicial reducido y adopción universal en el mercado.
 
 ### 3.12 PostgreSQL
 
@@ -517,13 +559,13 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Alternativas consideradas:** Nginx y Kong funcionan bien, pero hay que configurarlos fuera del stack .NET. Con YARP la configuración vive en el mismo proyecto C# y se beneficia de las mismas herramientas de debug y despliegue.
 
-### 4.7 Blazor WebAssembly para el frontend
+### 4.7 React + TypeScript para el frontend
 
-**Decisión:** usar Blazor WebAssembly en C# en lugar de frameworks JavaScript.
+**Decisión:** usar React + TypeScript en lugar de Blazor WebAssembly.
 
-**Justificación:** mantiene el stack 100% .NET, aprovecha el conocimiento del equipo y permite compartir modelos y lógica de validación entre frontend y backend. Integra nativamente con SignalR para las alertas en tiempo real.
+**Justificación:** React es el estándar de facto para frontends de alta interactividad. Blazor WebAssembly tiene un bundle inicial superior a 10 MB (impacta la primera carga), un ecosistema reducido y una comunidad significativamente menor. React se integra nativamente con el cliente JS de SignalR (`@microsoft/signalr`) y con React Leaflet — sin wrappers adicionales. Para un sistema que podrán usar cientos de policías simultáneamente desde diferentes navegadores y dispositivos, la madurez del ecosistema React es crítica.
 
-**Alternativa considerada:** React o Angular. Válidos técnicamente pero introducen un segundo lenguaje (JavaScript/TypeScript) en un equipo .NET.
+**Alternativa considerada:** Blazor WebAssembly — mantendría el stack 100% .NET, pero su adopción en el mercado es marginal y el bundle pesado penaliza la experiencia de usuario.
 
 ### 4.8 Apache Superset para analytics
 
@@ -533,9 +575,9 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Alternativa considerada:** Power BI — buena integración con el ecosistema Microsoft, pero tiene costo de licencia y no encaja en una estrategia multi-nube.
 
-### 4.9 Leaflet.js para mapas
+### 4.9 React Leaflet para mapas
 
-**Decisión:** usar Leaflet.js (via BlazorLeaflet) para la visualización de eventos en mapa.
+**Decisión:** usar Leaflet.js (via React Leaflet) para la visualización de eventos en mapa.
 
 **Justificación:** Leaflet es gratuito y sin límites de uso. Google Maps cobra por petición — en un sistema con miles de consultas diarias ese costo escala rápido, además de generar dependencia con un proveedor externo.
 
@@ -567,9 +609,15 @@ Herramienta de visualización de datos open source conectada a PostgreSQL. Prove
 
 **Configuración:** MassTransit gestiona la DLQ automáticamente al configurar la política de reintento (`UseMessageRetry`). El número de reintentos antes de mover a DLQ es configurable por cola (valor por defecto sugerido: 5 reintentos con backoff exponencial). Las DLQs son monitoreadas por Prometheus y Grafana — una alerta se dispara si hay mensajes acumulándose en una DLQ.
 
----
+### 4.14 Outbox Pattern — consistencia transaccional en Ingesta
 
-## 5. Consideraciones de Calidad
+**Decisión:** usar el patrón Transactional Outbox en el Servicio de Ingesta.
+
+**Justificación:** el Servicio de Ingesta ejecuta dos operaciones en secuencia: `INSERT` en PostgreSQL y `Publish` en RabbitMQ. Sin Outbox, si el proceso falla entre ambas operaciones (crash, falla de red), el evento queda en la base de datos pero nunca llega a RabbitMQ — el Servicio de Detección nunca lo procesa y el vehículo hurtado pasa invisible. El Outbox resuelve esto guardando el mensaje a publicar en una tabla `outbox` dentro de la **misma transacción de base de datos** que el evento. Un proceso relay lee la tabla `outbox` y publica en RabbitMQ con garantía de entrega — si falla, reintenta. El evento solo desaparece de `outbox` cuando RabbitMQ confirma la recepción.
+
+**Implementación:** MassTransit tiene soporte nativo de Outbox para PostgreSQL — se habilita con `UseBusOutbox()` en la configuración de MassTransit. No requiere desarrollo adicional.
+
+**Alternativa considerada:** saga con compensación manual. Descartada por mayor complejidad de implementación y menor confiabilidad frente al Outbox integrado de MassTransit.
 
 ### 5.1 Disponibilidad
 
@@ -627,15 +675,24 @@ Cada microservicio expone un endpoint `/health` que Kubernetes consulta para det
 - Infrastructure as Code con Terraform permite reproducir el entorno completo de forma automatizada.
 - CI/CD con GitHub Actions garantiza despliegues automatizados, consistentes y trazables.
 
----
+### 5.7 Estrategia de Pruebas
 
-## 6. Supuestos
+Pirámide de pruebas aplicada en todos los microservicios .NET:
+
+| Nivel | Herramienta | Qué cubre | Cuándo corre |
+|-------|-------------|-----------|-------------|
+| **Unit Tests** | xUnit + NSubstitute | Handlers MediatR, domain entities, reglas de negocio — sin infraestructura | En cada PR |
+| **Integration Tests** | Testcontainers .NET | Flujo Command → PostgreSQL real + RabbitMQ real en Docker. Verifica idempotencia con `event_id` duplicado | En merge a `main` |
+| **Contract Tests** | Pact (.NET) | Contratos consumer-driven entre microservicios via RabbitMQ — evita romper consumers al cambiar publishers | En merge a `main` |
+| **Load Tests** | k6 | Simula 2.500 dispositivos enviando eventos simultáneamente. Valida SLA de &lt;30s end-to-end | En release candidates |
+
+**Cobertura objetivo:** &gt;80% en capas Application y Domain. La capa Infrastructure se cubre con integration tests.
 
 1. **Escala inicial:** el sistema arranca con 5 países latinoamericanos y aproximadamente 500 dispositivos por país (2.500 dispositivos en total), con proyección de escalar a 50+ países y decenas de miles de dispositivos.
 
 2. **Volumen de eventos:** cada dispositivo genera en promedio 1 evento por segundo en hora pico (tráfico urbano denso), lo que representa aproximadamente 2.500 eventos por segundo a nivel global en el arranque.
 
-3. **API local del dispositivo:** el componente interno de reconocimiento de matrículas expone su información mediante un mecanismo local consultable por HTTP o socket. El Worker Service .NET se conecta a esa API para recolectar los eventos.
+3. **Mecanismo de acceso al hardware del dispositivo:** el componente interno de reconocimiento de matrículas expone su información mediante un **socket TCP local en `localhost:7000`** con frames delimitados por longitud. El Worker Service .NET se conecta usando `TcpClient` con polling cada 500 ms. Si un modelo de dispositivo usa named pipe de Linux en lugar de socket TCP, el mismo Worker adapta únicamente el transport sin cambiar la lógica de negocio.
 
 4. **Sistema operativo del dispositivo:** los dispositivos corren Linux embebido, que es el sistema operativo estándar para hardware con las especificaciones descritas. El Worker Service .NET se compila como ejecutable autónomo (self-contained) para Linux.
 

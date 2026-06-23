@@ -316,7 +316,7 @@
     /* ─── Decisions ─── */
     .decision-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: .9rem;
       margin-top: 1rem;
       text-align: left;
@@ -460,14 +460,14 @@
     <section>
       <div class="cover2-wrap">
         <div class="cover2-glow"></div>
-        <video src="bg.mp4" autoplay loop muted playsinline
+        <video src="videoCamaraIa.mp4" autoplay loop muted playsinline
           style="height:110px; margin-bottom:1rem; display:block; margin-left:auto; margin-right:auto;
                  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 15%, transparent 80%);
                  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 15%, transparent 80%);"></video>
         <div class="cover2-eyebrow">Propuesta de Arquitectura · Ceiba</div>
         <div class="cover2-title">Sistema para Combatir<br/><span>el Hurto de Vehículos</span></div>
         <div class="cover2-divider"></div>
-        <div class="cover2-sub">Plataforma distribuida para detección en tiempo real<br/>de vehículos hurtados — multi-país, multi-nube</div>
+        <div class="cover2-sub">Plataforma distribuida, cloud-agnostic y de alta disponibilidad<br/>para detección en tiempo real de vehículos robados</div>
         <div class="cover2-glass">
           <div class="cover2-chips">
             <span class="cover2-chip">.NET / C#</span>
@@ -525,7 +525,7 @@
         </div>
         <div class="pillar cloud fragment">
           <div class="pillar-title">☁️ Capa Cloud — Microservicios en Kubernetes</div>
-          <div class="pillar-desc">5 microservicios ASP.NET Core / Worker Service: Ingesta, Detección, Consulta, Notificaciones y Analytics. Desacoplados por RabbitMQ. Los mismos contenedores corren en AWS, Azure o GCP sin cambiar una línea.</div>
+          <div class="pillar-desc">5 microservicios ASP.NET Core / Worker Service: Ingesta, Detección, Consulta, Notificaciones y Analytics. Desacoplados por RabbitMQ. Desplegados en Kubernetes — cloud-agnostic.</div>
         </div>
         <div class="pillar integ fragment">
           <div class="pillar-title">🔗 Capa de Integración — Heterogeneidad por País</div>
@@ -590,7 +590,7 @@ flowchart LR
 
     subgraph APIS["🖥️ Frontend y APIs"]
         direction TB
-        FE["Aplicación Web\nBlazor WebAssembly"]
+        FE["Aplicación Web\nReact + TypeScript"]
         GW["API Gateway\nYARP - .NET"]
         KEYCLOAK["Gestión de Identidades\nKeycloak"]
         SVC_CONSULTA["Servicio de Consulta\nASP.NET Core Web API"]
@@ -658,7 +658,17 @@ flowchart TD
             </div>
           </div>
         </div>
-        <div style="display:flex; flex-direction:column; gap:.7rem;">
+        <div style="display:flex; flex-direction:column; gap:.7rem; overflow-y:auto; max-height:72vh; padding-right:.3rem;">
+          <div class="device-card" style="border-color:var(--blue);">
+            <h4 style="color:var(--blue);">🔌 Mecanismo de Acceso al Hardware</h4>
+            <ul>
+              <li>El componente de reconocimiento expone un <strong>socket TCP local</strong> en <code>localhost:7000</code></li>
+              <li>El Recolector hace polling cada <strong>500 ms</strong> — vía <code>TcpClient</code> en .NET</li>
+              <li>Protocolo: frames delimitados por longitud (<code>4 bytes length + JSON payload</code>)</li>
+              <li>¿Por qué no HTTP? Overhead innecesario en loopback con 1 GB RAM</li>
+              <li>Si el hardware expone named pipe (Linux): mismo Worker, distinto transport</li>
+            </ul>
+          </div>
           <div class="device-card">
             <h4>📦 Store-and-Forward</h4>
             <ul>
@@ -689,7 +699,130 @@ flowchart TD
     </section>
 
     <!-- ══════════════════════════════════════════
-         SLIDE 7 — FLUJO DE DETECCIÓN (ANIMADO)
+         SLIDE 7 — CLEAN ARCHITECTURE + CQRS
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Arquitectura Interna — Clean Architecture + CQRS</h2>
+      <p style="font-size:.72rem; text-align:left; opacity:.7;">Estructura interna de cada microservicio .NET: separación por capas, CQRS para desacoplar lecturas de escrituras, MediatR como bus de comandos.</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:.8rem;">
+        <div>
+          <div class="mermaid-wrap" style="max-height:330px;">
+            <div class="mermaid">
+flowchart TD
+    subgraph API["API / Worker (Entry Point)"]
+        CTR["Controllers · MQTT Consumers\nRabbitMQ Consumers"]
+    end
+    subgraph APP["Application Layer"]
+        CMD["Commands\nIngestEventCommand\nDetectStolenVehicleCommand"]
+        QRY["Queries\nGetPlateHistoryQuery"]
+        BHV["Pipeline Behaviors\nValidation · Logging"]
+    end
+    subgraph DOM["Domain Layer"]
+        ENT["Entities & Aggregates\nVehicleEvent · StolenVehicle"]
+        REP["IRepository interfaces"]
+    end
+    subgraph INF["Infrastructure Layer"]
+        EFC["EF Core Repositories\nPostgreSQL"]
+        MSG["MassTransit Publishers\nRabbitMQ"]
+        S3C["MinIO Client\nFoto storage"]
+    end
+
+    CTR -->|"IMediator.Send()"| CMD
+    CTR -->|"IMediator.Send()"| QRY
+    CMD --> BHV
+    QRY --> BHV
+    BHV --> ENT
+    BHV --> REP
+    REP --> EFC
+    CMD --> MSG
+    CMD --> S3C
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:.55rem;">
+          <div class="device-card">
+            <h4>📐 Clean Architecture</h4>
+            <ul>
+              <li><strong>Domain:</strong> entidades y reglas sin dependencias externas</li>
+              <li><strong>Application:</strong> casos de uso con MediatR. Un handler = un caso de uso</li>
+              <li><strong>Infrastructure:</strong> EF Core, MassTransit, MinIO — detalles de implementación</li>
+              <li><strong>API/Worker:</strong> entry point; traduce MQTT/HTTP/RabbitMQ a Commands</li>
+            </ul>
+          </div>
+          <div class="device-card">
+            <h4>⚡ CQRS con MediatR</h4>
+            <ul>
+              <li><code>IngestEventCommand</code>: guarda evento + foto + publica en RabbitMQ (Outbox)</li>
+              <li><code>DetectStolenVehicleCommand</code>: compara placa, publica alerta</li>
+              <li><code>GetPlateHistoryQuery</code>: historial paginado con URLs de fotos</li>
+              <li>Validación con <code>FluentValidation</code> via pipeline behavior</li>
+            </ul>
+          </div>
+          <div class="device-card">
+            <h4>🗃️ Repository + EF Core</h4>
+            <ul>
+              <li>Repositorios genéricos por agregado, Unit of Work para transacciones</li>
+              <li>Índices compuestos <code>(matricula, fecha_evento)</code> en PostgreSQL</li>
+              <li><code>INSERT ... ON CONFLICT DO NOTHING</code> para idempotencia</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 8 — ESTRATEGIA DE PRUEBAS
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Estrategia de Pruebas</h2>
+      <p style="font-size:.72rem; text-align:left; opacity:.7;">Pirámide de pruebas para garantizar calidad en cada capa — desde el handler MediatR hasta el flujo completo con infraestructura real.</p>
+      <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:.8rem; margin-top:.9rem;">
+        <div class="device-card" style="border-color:var(--green);">
+          <h4 style="color:var(--green);">🔬 Unit Tests</h4>
+          <ul>
+            <li><strong>xUnit + NSubstitute</strong></li>
+            <li>Handlers MediatR en aislamiento</li>
+            <li>Domain entities y reglas de negocio</li>
+            <li>Sin base de datos — mocks de repositorios</li>
+            <li>Cobertura objetivo: &gt;80% en Application + Domain</li>
+          </ul>
+        </div>
+        <div class="device-card" style="border-color:var(--blue);">
+          <h4 style="color:var(--blue);">🔗 Integration Tests</h4>
+          <ul>
+            <li><strong>Testcontainers .NET</strong></li>
+            <li>PostgreSQL real en Docker</li>
+            <li>RabbitMQ real en Docker</li>
+            <li>Prueba el flujo completo Command → DB</li>
+            <li>Verifica idempotencia con <code>event_id</code> duplicado</li>
+          </ul>
+        </div>
+        <div class="device-card" style="border-color:var(--amber);">
+          <h4 style="color:var(--amber);">📜 Contract Tests</h4>
+          <ul>
+            <li><strong>Pact (.NET)</strong></li>
+            <li>Contratos entre microservicios via RabbitMQ</li>
+            <li>Consumer-Driven: el consumidor define el contrato</li>
+            <li>Evita romper consumers al cambiar publishers</li>
+          </ul>
+        </div>
+        <div class="device-card" style="border-color:var(--red);">
+          <h4 style="color:var(--red);">🏋️ Load Tests</h4>
+          <ul>
+            <li><strong>k6</strong></li>
+            <li>Simula 2,500 dispositivos enviando eventos</li>
+            <li>Valida SLA de &lt;30s de latencia end-to-end</li>
+            <li>Detecta cuellos de botella antes de producción</li>
+          </ul>
+        </div>
+      </div>
+      <div style="margin-top:.8rem; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:.55rem 1rem; font-size:.68rem; text-align:center;">
+        <strong style="color:var(--blue)">GitHub Actions:</strong> Unit Tests en cada PR · Integration Tests en merge a main · Load Tests en release candidates
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 9 — FLUJO DE DETECCIÓN (ANIMADO)
     ══════════════════════════════════════════ -->
     <section>
       <h2>Flujo de Detección — Paso a Paso</h2>
@@ -776,6 +909,11 @@ flowchart LR
           <strong style="color:var(--blue);">Keycloak como broker</strong><br/>
           El sistema habla solo con Keycloak. Keycloak habla con LDAP, AD, SOAP, REST de cada país. JWT estándar para todos.
         </div>
+        <div style="flex:1; background:var(--bg2); border:1px solid var(--green); border-radius:8px; padding:.6rem .8rem; font-size:.68rem;">
+          <strong style="color:var(--green);">Sincronización: Pull + Push</strong><br/>
+          <strong>Pull (por defecto):</strong> polling cada 15 min para países con BDs sin notificaciones.<br/>
+          <strong>Push (preferido):</strong> si el país ofrece webhook o CDC, el adaptador se suscribe y actualiza en segundos — sin cambiar el sistema central.
+        </div>
       </div>
     </section>
 
@@ -802,8 +940,8 @@ flowchart LR
           <span class="badge amber">SignalR</span>
           <span class="badge amber">YARP API Gateway</span>
           <span class="badge amber">Keycloak (JWT)</span>
-          <span class="badge amber">Blazor WebAssembly</span>
-          <span class="badge amber">BlazorLeaflet</span>
+          <span class="badge amber">React + TypeScript</span>
+          <span class="badge amber">React Leaflet</span>
         </div>
         <div class="stack-section-title">🗄️ Datos &amp; Mensajería</div>
         <div class="badge-grid">
@@ -862,7 +1000,7 @@ flowchart LR
         </div>
       </div>
       <p style="font-size:.65rem; color:var(--text); opacity:.6; margin-top:1rem; text-align:center;">
-        Tres capas independientes: cada una se despliega, escala y mantiene por separado.
+        Cada pilar resuelve una dimensión crítica para un sistema de seguridad pública operado 24/7 en múltiples países.
       </p>
     </section>
 
@@ -884,13 +1022,23 @@ flowchart LR
         </div>
         <div class="decision-card">
           <h4>Keycloak como broker de identidades</h4>
-          <p>Open source, sin lock-in de proveedor. Habla LDAP, AD, SOAP y REST — el sistema nunca toca los sistemas de autenticación de cada país directamente.</p>
+          <p>Open source, cloud-agnostic, soporta nativamente LDAP/AD/SOAP/REST. El sistema nunca toca los sistemas de autenticación de cada país directamente.</p>
           <div class="why">→ Descartados: Azure AD B2C (lock-in), Auth0 (costo), IdentityServer (desarrollo manual)</div>
         </div>
         <div class="decision-card">
           <h4>Dead Letter Queue + monitoreo activo</h4>
           <p>Mensajes corruptos no bloquean el flujo principal. 5 reintentos con backoff exponencial vía MassTransit, luego DLQ. Grafana alerta si DLQ &gt; 0.</p>
           <div class="why">→ UseMessageRetry · Prometheus plugin RabbitMQ · Alert Grafana</div>
+        </div>
+        <div class="decision-card">
+          <h4>Outbox Pattern — consistencia transaccional</h4>
+          <p>El Servicio de Ingesta hace INSERT en PostgreSQL y publica en RabbitMQ en la misma transacción lógica. Sin Outbox, un fallo entre ambas operaciones genera inconsistencia.</p>
+          <div class="why">→ MassTransit Outbox integrado · tabla outbox en PostgreSQL · proceso relay automático</div>
+        </div>
+        <div class="decision-card">
+          <h4>React + TypeScript en lugar de Blazor WASM</h4>
+          <p>React es el estándar del mercado para frontends de alta interactividad. Blazor WASM tiene bundle inicial de 10+ MB y ecosistema reducido. React se integra con el cliente JS de SignalR y React Leaflet nativamente.</p>
+          <div class="why">→ Vite · React 18 · TypeScript · React Leaflet · @microsoft/signalr</div>
         </div>
       </div>
     </section>
@@ -907,7 +1055,7 @@ flowchart LR
           <div class="alert-dot"></div>
           <div class="alert-dot orange"></div>
           <div class="alert-dot green"></div>
-          <span style="margin-left:.5rem;">Sistema Anti-Hurto · Colombia · Blazor WebAssembly</span>
+          <span style="margin-left:.5rem;">Sistema Anti-Hurto · Colombia · React + TypeScript</span>
         </div>
 
         <div class="alert-notification" id="alertNotif">
@@ -951,23 +1099,15 @@ flowchart LR
           <strong style="color:var(--green)">integración heterogénea</strong> por país sin lock-in de ningún proveedor.
         </div>
         <div class="close-links">
-          <a class="close-link" href="https://github.com/chetango/ceiba-arquitectura/blob/main/plantilla-propuesta.md" target="_blank" rel="noopener noreferrer">
+          <a class="close-link" href="https://github.com/chetango/ChetangoStudentApi/blob/main/propuesta-arquitectura-ceiba.md" target="_blank" rel="noopener noreferrer">
             📄 Propuesta completa en GitHub
           </a>
-          <a class="close-link" href="https://github.com/chetango/ceiba-arquitectura" target="_blank" rel="noopener noreferrer" style="border-color:var(--green); color:var(--green) !important;">
+          <a class="close-link" href="https://github.com/chetango/ChetangoStudentApi" target="_blank" rel="noopener noreferrer" style="border-color:var(--green); color:var(--green) !important;">
             💻 Repositorio
           </a>
         </div>
         <div style="margin-top:1.8rem; font-size:.62rem; color:var(--border);">
-          Stack 100% .NET · Open Source · Multi-nube · Kubernetes · GitHub Actions · Terraform
-        </div>
-        <div style="margin-top:1.4rem;">
-          <button onclick="Reveal.slide(0)" style="background:transparent; border:1px solid var(--border); color:var(--text); font-size:.65rem; padding:.35rem .9rem; border-radius:6px; cursor:pointer; letter-spacing:.05em; opacity:.6; transition:opacity .2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">
-            ↩ Volver al inicio
-          </button>
-        </div>
-        <div style="margin-top:1.2rem; border-top:1px solid var(--border); padding-top:1rem; font-size:.65rem; color:var(--text); opacity:.6; letter-spacing:.04em;">
-          Jorge Padilla &mdash; Ingeniero de Sistemas · Especialista en Desarrollo de Software
+          Stack 100% .NET · Open Source · Cloud Agnostic · Kubernetes · GitHub Actions · Terraform
         </div>
       </div>
     </section>
