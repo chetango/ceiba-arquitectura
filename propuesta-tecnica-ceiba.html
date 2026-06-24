@@ -1322,13 +1322,14 @@ flowchart LR
     plugins: [],
   });
 
-  // Ocultar hint en el primer slide (portada) y en el último
+  // Ocultar hint en el primer slide (portada), el último y el slide de simulación de alerta
   Reveal.on('slidechanged', (e) => {
     const hint = document.getElementById('docHint');
     if (!hint) return;
     const total = Reveal.getTotalSlides();
     const current = Reveal.getState().indexh + 1;
-    hint.style.opacity = (current === 1 || current === total) ? '0' : '1';
+    const isAlertSlide = !!e.currentSlide.querySelector('#alertNotif');
+    hint.style.opacity = (current === 1 || current === total || isAlertSlide) ? '0' : '1';
     renderMermaid();
   });
   Reveal.on('ready', () => {
