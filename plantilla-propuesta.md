@@ -642,6 +642,9 @@ Ninguna credencial vive en el código ni en variables de entorno no gestionadas.
 **Comunicación de dispositivos — mTLS:**
 Cada dispositivo tiene un certificado digital único emitido al momento de su instalación. La comunicación con el MQTT Broker usa mTLS (TLS mutuo) — tanto el servidor como el dispositivo se autentican mutuamente. Un dispositivo sin certificado válido no puede conectarse. Si un dispositivo es comprometido, su certificado se revoca desde el sistema central y queda bloqueado inmediatamente. Implementado en .NET via X.509 certificates, con soporte nativo del runtime.
 
+**Enrolamiento de dispositivos nuevos — "día cero":**
+El certificado definitivo no puede existir antes de que el dispositivo se conecte por primera vez. El proceso de enrolamiento resuelve este problema con un **bootstrap certificate**: un certificado temporal de vida muy corta (24 horas) emitido en fábrica y grabado en el firmware. Al encenderse por primera vez, el Worker Service usa ese bootstrap cert para realizar una única solicitud al CA interno del sistema, que valida el serial del dispositivo y emite el **certificado X.509 definitivo** único de esa cámara. El bootstrap cert queda revocado inmediatamente — es válido para una sola solicitud. Desde ese momento, cert-manager gestiona la renovación automática del certificado definitivo antes de su vencimiento, sin intervención manual.
+
 **APIs — JWT + HTTPS:**
 Todos los endpoints del API Gateway están protegidos con Token JWT emitido por Keycloak. Sin token válido ninguna petición es procesada. Rate limiting en YARP previene ataques de fuerza bruta. Toda comunicación usa HTTPS obligatorio.
 
@@ -726,3 +729,45 @@ Pirámide de pruebas aplicada en todos los microservicios .NET:
 ---
 
 *Jorge Padilla — Ingeniero de Sistemas · Especialista en Desarrollo de Software*
+
+---
+
+## 7. Roadmap de Implementación
+
+El sistema se entrega en tres fases incrementales. Cada fase produce un sistema funcional y utilizable por la policía, sin esperar a completar la arquitectura completa.
+
+### Fase 1 — MVP: Detección y Alerta (~4 meses)
+
+**Alcance:** 2 países piloto, aproximadamente 500 dispositivos.
+
+- Flujo completo de detección: cámara → ingesta → comparación → alerta en tiempo real.
+- Worker Service edge con store-and-forward (SQLite + MQTT).
+- Adaptadores para las BDs de vehículos robados de los 2 países piloto.
+- Frontend React: mapa de avistamientos, búsqueda por placa, alertas vía SignalR.
+- Keycloak integrado con LDAP/AD de los 2 países.
+- Infraestructura básica en Kubernetes con Terraform.
+
+**Resultado:** la policía puede buscar una placa y recibir alertas automáticas en menos de 30 segundos.
+
+### Fase 2 — Escala y Analytics (~3 meses adicionales)
+
+**Alcance:** 5 países, aproximadamente 2.500 dispositivos.
+
+- Apache Superset con dashboards analíticos: mapas de calor de zonas de hurto, rutas de escape frecuentes, distribución horaria.
+- Migración a EMQX si el volumen de dispositivos conectados simultáneamente lo requiere.
+- Gestión remota de dispositivos con **Eclipse Hawkbit**: actualizaciones del Worker Service sin intervención física en cada cámara.
+- Stack de observabilidad completo: ELK + Grafana + OpenTelemetry.
+- Enrolamiento automático de dispositivos nuevos (bootstrap cert + cert-manager).
+
+**Resultado:** herramienta analítica operativa para identificar tendencias de hurto en 5 países.
+
+### Fase 3 — Expansión Global (continua)
+
+**Alcance:** 50+ países, decenas de miles de dispositivos.
+
+- **TimescaleDB** como extensión de PostgreSQL para queries de series de tiempo a escala masiva, sin cambiar el esquema ni las queries existentes.
+- DR activo-activo multi-región en Kubernetes: failover automático ante falla de una región entera.
+- Machine Learning para predicción de zonas de riesgo y patrones de comportamiento de vehículos robados.
+- API pública documentada para integración con sistemas de terceros (seguros, recuperadores de vehículos).
+
+**Resultado:** plataforma global de seguridad vehicular escalable a cualquier región del mundo.

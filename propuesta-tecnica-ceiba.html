@@ -490,6 +490,47 @@
       animation: none;
     }
 
+    /* ─── Roadmap ─── */
+    .roadmap-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .9rem;
+      margin-top: .8rem;
+    }
+    .roadmap-phase {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      font-size: .68rem;
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+    }
+    .roadmap-phase.phase1 { border-top: 3px solid var(--amber); }
+    .roadmap-phase.phase2 { border-top: 3px solid var(--blue); }
+    .roadmap-phase.phase3 { border-top: 3px solid var(--green); }
+    .roadmap-phase h4 { margin: 0; font-size: .8rem; }
+    .roadmap-phase ul { margin: 0; padding-left: 1.1rem; line-height: 1.8; }
+    .phase-tag {
+      font-family: var(--mono);
+      font-size: .58rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      opacity: .7;
+    }
+    .roadmap-phase.phase1 .phase-tag { color: var(--amber); }
+    .roadmap-phase.phase2 .phase-tag { color: var(--blue); }
+    .roadmap-phase.phase3 .phase-tag { color: var(--green); }
+    .phase-outcome {
+      margin-top: auto;
+      padding-top: .5rem;
+      border-top: 1px solid var(--border);
+      font-size: .62rem;
+      opacity: .8;
+    }
+
     /* ─── Scroll hint override ─── */
     .reveal .slide-number { font-family: var(--mono); font-size: .65rem; }
 
@@ -753,6 +794,16 @@ flowchart TD
               <li>Cada evento tiene <code>event_id</code> UUID</li>
               <li><code>INSERT ... ON CONFLICT DO NOTHING</code></li>
               <li>Duplicados descartados silenciosamente</li>
+            </ul>
+          </div>
+          <div class="device-card" style="border-color:var(--green);">
+            <h4 style="color:var(--green);">🆕 Enrolamiento de Dispositivos Nuevos</h4>
+            <ul>
+              <li><strong>Bootstrap cert:</strong> certificado temporal emitido en fábrica, corta vida</li>
+              <li>El Worker lo usa para hacer la primera solicitud al CA interno</li>
+              <li><strong>cert-manager</strong> emite el certificado X.509 definitivo del dispositivo</li>
+              <li>Bootstrap queda revocado — válido para una sola solicitud</li>
+              <li>Renovación automática antes del vencimiento: cero intervención manual</li>
             </ul>
           </div>
         </div>
@@ -1152,7 +1203,55 @@ flowchart LR
     </section>
 
     <!-- ══════════════════════════════════════════
-         SLIDE 13 — CIERRE
+         SLIDE 13 — ROADMAP
+    ══════════════════════════════════════════ -->
+    <section>
+      <h2>Roadmap de Implementación</h2>
+      <p style="font-size:.7rem; opacity:.7; text-align:left;">Tres fases incrementales — cada entrega es un sistema funcional utilizable por la policía.</p>
+      <div class="roadmap-grid">
+        <div class="roadmap-phase phase1">
+          <div class="phase-tag">Fase 1 · ~4 meses</div>
+          <h4>MVP — Detección y Alerta</h4>
+          <ul>
+            <li>2 países piloto · 500 dispositivos</li>
+            <li>Flujo completo: cámara → detección → alerta</li>
+            <li>Worker Service edge con store-and-forward</li>
+            <li>Adaptadores para 2 BDs de vehículos robados</li>
+            <li>Frontend: mapa + historial + alertas en tiempo real</li>
+            <li>Keycloak con LDAP/AD de ambos países</li>
+          </ul>
+          <div class="phase-outcome">✅ Policía detecta y recibe alerta en &lt;30 seg</div>
+        </div>
+        <div class="roadmap-phase phase2">
+          <div class="phase-tag">Fase 2 · ~3 meses</div>
+          <h4>Escala + Analytics</h4>
+          <ul>
+            <li>5 países · 2.500 dispositivos</li>
+            <li>Apache Superset — dashboards analíticos</li>
+            <li>Mapas de calor: zonas de hurto, rutas de escape</li>
+            <li>EMQX si el volumen de dispositivos lo requiere</li>
+            <li>Gestión remota de dispositivos (Eclipse Hawkbit)</li>
+            <li>Observabilidad completa: ELK + Grafana + OTel</li>
+          </ul>
+          <div class="phase-outcome">✅ Análisis de tendencias operativo para 5 países</div>
+        </div>
+        <div class="roadmap-phase phase3">
+          <div class="phase-tag">Fase 3 · continua</div>
+          <h4>Expansión Global</h4>
+          <ul>
+            <li>50+ países · decenas de miles de dispositivos</li>
+            <li>TimescaleDB para time-series a escala masiva</li>
+            <li>DR activo-activo multi-región Kubernetes</li>
+            <li>Machine Learning: predicción de zonas de riesgo</li>
+            <li>API pública para integración con terceros</li>
+          </ul>
+          <div class="phase-outcome">✅ Plataforma global de seguridad vehicular</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         SLIDE 14 — CIERRE
     ══════════════════════════════════════════ -->
     <section>
       <div style="text-align:center; padding: 1.5rem 1rem;">
