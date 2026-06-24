@@ -25,20 +25,27 @@ Vista de alto nivel del sistema y sus interacciones con actores y sistemas exter
 
 ```mermaid
 flowchart TD
-    U1[👮 Policía\nEntidades policiales de cada país]
+    U1["👮 Policía\n[Person]\nEntidades policiales de cada país"]
 
-    subgraph SISTEMA["Sistema de Detección de Vehículos Robados"]
-        S[Plataforma Central]
+    subgraph SISTEMA["Sistema de Detección de Vehículos Robados\n[Software System]"]
+        S["Plataforma Central\n[Software System]\nDetecta vehículos hurtados y alerta a la policía"]
     end
 
-    E1[📷 Dispositivos de Monitoreo\nCámaras en calles de múltiples países]
-    E2[🗄️ BDs de Vehículos Robados\nUna por cada país, formato diferente]
-    E3[🔐 Sistemas de Autenticación\nLDAP, BD, SOAP, REST por país]
+    E1["📷 Dispositivos de Monitoreo\n[External System]\nCámaras en calles de múltiples países"]
+    E2["🗄️ BDs de Vehículos Robados\n[External System]\nUna por cada país, formato diferente"]
+    E3["🔐 Sistemas de Autenticación\n[External System]\nLDAP, BD, SOAP, REST por país"]
 
     E1 -->|Envía placas, fotos\ny ubicación GPS| S
     S -->|Consulta vehículos\nrobados cada 15 min| E2
     S -->|Verifica identidad\ndel usuario| E3
     U1 -->|Busca placas, ve mapa\ny recibe alertas| S
+
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999,stroke:#6b6b6b,color:#fff
+    class U1 person
+    class S system
+    class E1,E2,E3 external
 ```
 
 **Descripción:** El sistema recibe eventos de los dispositivos de monitoreo desplegados en múltiples países, se integra con las bases de datos de vehículos hurtados de cada entidad policial y con sus sistemas de autenticación, y provee a los usuarios policiales las funcionalidades de consulta, alerta y análisis.
@@ -52,41 +59,41 @@ Vista interna del sistema mostrando todos los bloques tecnológicos y sus relaci
 ```mermaid
 %%{init: {'flowchart': {'curve': 'linear'}}}%%
 flowchart LR
-    E1["📷 Dispositivos\nCámaras"]
-    U1["👮 Policía"]
+    E1["📷 Dispositivos de Monitoreo\n[External System]\nCámaras IoT en calle, múltiples países"]
+    U1["👮 Policía\n[Person]\nEntidades policiales de cada país"]
 
     subgraph MENSAJERIA["📨 Mensajería"]
         direction TB
-        MQTT["MQTT Broker\nMosquitto"]
-        MQ["Cola de Mensajes\nRabbitMQ"]
+        MQTT["MQTT Broker\n[Container: Mosquitto]\nRecibe eventos de cámaras vía mTLS"]
+        MQ["Cola de Mensajes\n[Container: RabbitMQ]\nDesacopla microservicios, buffer de resiliencia"]
     end
 
     subgraph WORKERS["⚙️ Servicios Worker"]
         direction TB
-        SVC_INGESTA["Servicio de Ingesta\nWorker Service .NET"]
-        SVC_DETECCION["Servicio de Detección\nWorker Service .NET"]
-        SVC_NOTIF["Servicio de Notificaciones\nWorker .NET + SignalR"]
-        ADAPTER["Adaptadores por País\nWorker Services .NET"]
+        SVC_INGESTA["Servicio de Ingesta\n[Container: Worker Service .NET]\nPersiste eventos y fotos, publica en cola"]
+        SVC_DETECCION["Servicio de Detección\n[Container: Worker Service .NET]\nCompara placas contra vehículos hurtados"]
+        SVC_NOTIF["Servicio de Notificaciones\n[Container: Worker .NET + SignalR]\nEntrega alertas en tiempo real al frontend"]
+        ADAPTER["Adaptadores por País\n[Container: Worker Services .NET]\nNormaliza BDs heterogéneas al esquema central"]
     end
 
     subgraph APIS["🖥️ Frontend y APIs"]
         direction TB
-        FE["Aplicación Web\nReact + TypeScript"]
-        GW["API Gateway\nYARP - .NET"]
-        KEYCLOAK["Gestión de Identidades\nKeycloak"]
-        SVC_CONSULTA["Servicio de Consulta\nASP.NET Core Web API"]
-        SVC_ANALYTICS["Servicio de Analytics\nASP.NET Core Web API"]
+        FE["Aplicación Web\n[Container: React + TypeScript]\nConsulta historial y recibe alertas en tiempo real"]
+        GW["API Gateway\n[Container: YARP .NET]\nValida JWT y enruta peticiones"]
+        KEYCLOAK["Gestión de Identidades\n[Container: Keycloak]\nFedere autenticación de todos los países"]
+        SVC_CONSULTA["Servicio de Consulta\n[Container: ASP.NET Core Web API]\nExpone historial de avistamientos por placa"]
+        SVC_ANALYTICS["Servicio de Analytics\n[Container: ASP.NET Core Web API]\nExpone tendencias y dashboards analíticos"]
     end
 
     subgraph DATOS["🗃️ Almacenamiento"]
         direction TB
-        DB[("PostgreSQL\nBase de datos central")]
-        STORAGE["Almacenamiento de Fotos\nMinIO"]
-        SUPERSET["Dashboards\nApache Superset"]
+        DB[("PostgreSQL\n[Container: Relational DB]\nEventos, vehículos hurtados, alertas")]
+        STORAGE["MinIO\n[Container: Object Storage]\nFotos de vehículos avistados (S3-compatible)"]
+        SUPERSET["Apache Superset\n[Container: Analytics Tool]\nDashboards geoespaciales de tendencias"]
     end
 
-    E2["🗄️ BDs Vehículos\nRobados por país"]
-    E3["🔐 Auth\npor país"]
+    E2["🗄️ BDs Vehículos Robados\n[External System]\nUna por país, formato y tecnología heterogénea"]
+    E3["🔐 Sistemas de Autenticación\n[External System]\nLDAP, AD, SOAP, REST — uno por país"]
 
     E1 -->|"Eventos MQTT"| MQTT
     MQTT --> SVC_INGESTA
@@ -110,33 +117,13 @@ flowchart LR
     SVC_CONSULTA -->|"Obtiene fotos"| STORAGE
     SVC_ANALYTICS -->|"Consulta históricos"| DB
     SVC_ANALYTICS --> SUPERSET
-```
 
-**Descripción:** El diagrama muestra dos flujos principales. El flujo automático (izquierda): los dispositivos envían eventos via MQTT, el Servicio de Ingesta los persiste y los publica en RabbitMQ, el Servicio de Detección los compara contra la base de datos unificada de vehículos hurtados y, si hay coincidencia, publica una alerta que el Servicio de Notificaciones entrega en tiempo real al policía. El flujo de consulta (derecha): el policía se autentica via Keycloak, accede al API Gateway y consulta el historial de una placa o los dashboards de analytics.
-
----
-
-### 2.3 Diagrama del Componente del Dispositivo (Cámara)
-
-Vista interna del software que corre dentro de cada dispositivo de monitoreo.
-
-```mermaid
-flowchart TD
-    A[Componente de reconocimiento\nde placas - Hardware]
-
-    subgraph WS[Worker Service - .NET]
-        B[Recolector de Eventos]
-        C[Sincronizador]
-    end
-
-    D[(SQLite\nAlmacenamiento local)]
-    E[Sistema Central\nen la Nube]
-
-    A -->|Placa + foto + GPS + hora| B
-    B -->|Guarda evento pendiente| D
-    C -->|Lee eventos pendientes| D
-    C -->|Envía vía MQTT cuando hay GSM| E
-    C -->|Marca evento como enviado| D
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+    classDef container fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999,stroke:#6b6b6b,color:#fff
+    class U1 person
+    class MQTT,MQ,SVC_INGESTA,SVC_DETECCION,SVC_NOTIF,ADAPTER,FE,GW,KEYCLOAK,SVC_CONSULTA,SVC_ANALYTICS,DB,STORAGE,SUPERSET container
+    class E1,E2,E3 external
 ```
 
 **Mecanismo de acceso al hardware:** el componente de reconocimiento de matrículas ya integrado en el dispositivo expone su información mediante un **socket TCP local en `localhost:7000`**. El Recolector hace polling cada 500 ms usando `TcpClient` en .NET, leyendo frames delimitados por longitud (4 bytes de longitud + payload JSON). Esta elección evita el overhead de HTTP en loopback con solo 1 GB de RAM. Si el hardware en un modelo de dispositivo diferente expone un named pipe de Linux, el mismo Worker Service puede adaptarse cambiando únicamente el transport, sin modificar la lógica de negocio.
@@ -153,28 +140,28 @@ Vista detallada de cómo el sistema se integra con los sistemas externos de cada
 %%{init: {'flowchart': {'curve': 'linear'}}}%%
 flowchart LR
     subgraph BDPAISES["📊 BDs de Vehículos Hurtados"]
-        BD1[("Colombia\nOracle / MySQL")]
-        BD2[("México\nREST API")]
-        BD3[("País N\nFormato nativo")]
+        BD1[("Colombia\n[External System]\nOracle / MySQL")]
+        BD2[("México\n[External System]\nREST API")]
+        BD3[("País N\n[External System]\nFormato nativo")]
     end
 
     subgraph SISTEMA["☁️ Sistema Central - Nube"]
         direction TB
-        ADP1["Adaptador Colombia\nWorker .NET"]
-        ADP2["Adaptador México\nWorker .NET"]
-        ADP3["Adaptador País N\nWorker .NET"]
-        DB[("PostgreSQL\nVehículos robados\nunificados")]
-        GW["API Gateway\nYARP"]
-        KEYCLOAK["Keycloak\nBroker de Identidades"]
+        ADP1["Adaptador Colombia\n[Container: Worker .NET]\nNormaliza datos al esquema estándar"]
+        ADP2["Adaptador México\n[Container: Worker .NET]\nNormaliza datos al esquema estándar"]
+        ADP3["Adaptador País N\n[Container: Worker .NET]\nNormaliza datos al esquema estándar"]
+        DB[("PostgreSQL\n[Container: Relational DB]\nVehículos robados unificados")]
+        GW["API Gateway\n[Container: YARP .NET]\nValida JWT y enruta peticiones"]
+        KEYCLOAK["Keycloak\n[Container: Identity Broker]\nFedere autenticación multi-país"]
     end
 
     subgraph AUTHPAISES["🔐 Autenticación por País"]
-        AUTH1["Colombia\nLDAP / Active Directory"]
-        AUTH2["México\nSOAP"]
-        AUTH3["País N\nOtro mecanismo"]
+        AUTH1["Colombia\n[External System]\nLDAP / Active Directory"]
+        AUTH2["México\n[External System]\nSOAP"]
+        AUTH3["País N\n[External System]\nOtro mecanismo"]
     end
 
-    U1["👮 Policía"]
+    U1["👮 Policía\n[Person]\nEntidades policiales de cada país"]
 
     BD1 -->|"Cada 15 min\nprotocolo nativo"| ADP1
     BD2 -->|"Cada 15 min\nREST"| ADP2
@@ -184,12 +171,19 @@ flowchart LR
     ADP2 -->|"Formato estándar"| DB
     ADP3 -->|"Formato estándar"| DB
 
-    U1 -->|"Login"| GW
+    U1 --> GW
     GW -->|"Redirige autenticación"| KEYCLOAK
     KEYCLOAK -->|"Token JWT"| GW
     KEYCLOAK -->|"LDAP query"| AUTH1
     KEYCLOAK -->|"SOAP request"| AUTH2
     KEYCLOAK -->|"Protocolo nativo"| AUTH3
+
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+    classDef container fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999,stroke:#6b6b6b,color:#fff
+    class U1 person
+    class ADP1,ADP2,ADP3,DB,GW,KEYCLOAK container
+    class BD1,BD2,BD3,AUTH1,AUTH2,AUTH3 external
 ```
 
 **Descripción:** La integración tiene dos dimensiones. Para los datos de vehículos hurtados, se implementa el patrón Adapter — un Worker Service en .NET por cada país que conoce el protocolo y formato de la fuente de datos de ese país, extrae la información y la normaliza al esquema estándar del sistema. La sincronización soporta dos modos: **pull** (polling cada 15 minutos, por defecto para países sin notificaciones activas) y **push** (si el país ofrece webhook o CDC, el adaptador se suscribe y actualiza en segundos). Ambos modos coexisten — el adaptador elige el modo disponible para su fuente sin modificar el sistema central. Para la autenticación, Keycloak actúa como broker de identidades: el sistema solo habla con Keycloak, y Keycloak se encarga de hablar con el sistema de autenticación de cada país sin importar el protocolo que use.
@@ -284,39 +278,39 @@ Vista de la infraestructura y cómo viven los componentes en la nube.
 ```mermaid
 %%{init: {'flowchart': {'curve': 'linear'}}}%%
 flowchart TD
-    CAM["📷 Cámaras - N dispositivos\nWorker Service .NET + SQLite"]
-    POL["👮 Policía\nNavegador Web"]
+    CAM["📷 Cámaras - N dispositivos\n[External System]\nWorker Service .NET + SQLite"]
+    POL["👮 Policía\n[Person]\nNavegador Web"]
 
     subgraph CLOUD["☁️ Kubernetes - Nube Cloud Agnostic"]
         subgraph AUTO["Flujo Automático - Detección"]
-            MQTT["MQTT Broker\nMosquitto"]
-            ING["Servicio Ingesta\nWorker .NET"]
-            MQ["RabbitMQ"]
-            DET["Servicio Detección\nWorker .NET"]
-            NOT["Servicio Notificaciones\nWorker .NET"]
+            MQTT["MQTT Broker\n[Container: Mosquitto]\nRecibe eventos de cámaras"]
+            ING["Servicio Ingesta\n[Container: Worker .NET]\nPersiste eventos, publica en cola"]
+            MQ["Cola de Mensajes\n[Container: RabbitMQ]\nBuffer de resiliencia"]
+            DET["Servicio Detección\n[Container: Worker .NET]\nCompara placas, genera alertas"]
+            NOT["Servicio Notificaciones\n[Container: Worker .NET]\nEntrega alertas vía SignalR"]
         end
 
         subgraph CONSULTA["Flujo de Consulta"]
-            GW["API Gateway\nYARP .NET"]
-            KK["Keycloak"]
-            CON["Servicio Consulta\nWeb API .NET"]
-            ANA["Servicio Analytics\nWeb API .NET"]
+            GW["API Gateway\n[Container: YARP .NET]\nValida JWT y enruta peticiones"]
+            KK["Keycloak\n[Container: Identity Broker]\nFedere autenticación multi-país"]
+            CON["Servicio Consulta\n[Container: Web API .NET]\nHistorial de avistamientos por placa"]
+            ANA["Servicio Analytics\n[Container: Web API .NET]\nTendencias y dashboards"]
         end
 
         subgraph INTEG["Integraciones"]
-            ADP["Adaptadores por País\nWorker .NET"]
+            ADP["Adaptadores por País\n[Container: Worker .NET]\nNormaliza BDs heterogéneas"]
         end
 
         subgraph DATA["Datos Compartidos"]
-            PG[("PostgreSQL")]
-            MIN["MinIO\nObject Storage"]
-            SUP["Apache Superset"]
+            PG[("PostgreSQL\n[Container: Relational DB]")]
+            MIN["MinIO\n[Container: Object Storage]"]
+            SUP["Apache Superset\n[Container: Analytics Tool]"]
         end
     end
 
     subgraph EXT["🏛️ Sistemas Externos - Por País"]
-        BDPAIS[("BDs Vehículos Robados")]
-        AUTHPAIS["Sistemas Autenticación"]
+        BDPAIS[("BDs Vehículos Robados\n[External System]")]
+        AUTHPAIS["Sistemas Autenticación\n[External System]"]
     end
 
     CAM -->|"MQTT + mTLS"| MQTT
@@ -341,6 +335,13 @@ flowchart TD
 
     ADP -->|"cada 15 min"| BDPAIS
     ADP --> PG
+
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+    classDef container fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999,stroke:#6b6b6b,color:#fff
+    class POL person
+    class MQTT,ING,MQ,DET,NOT,GW,KK,CON,ANA,ADP,PG,MIN,SUP container
+    class CAM,BDPAIS,AUTHPAIS external
 ```
 
 **Descripción:** Todos los servicios corren como contenedores Docker dentro de un cluster Kubernetes, lo que garantiza portabilidad entre proveedores de nube. La capa de datos (PostgreSQL, RabbitMQ, MinIO) puede correr dentro del mismo cluster o como servicios administrados del proveedor cloud, en ambos casos usando tecnologías open source sin lock-in. La infraestructura se aprovisiona mediante **Terraform**, permitiendo reproducir el entorno en cualquier nube con un solo comando.
@@ -354,28 +355,28 @@ Vista de cómo se recolectan logs, métricas y trazas de todos los componentes d
 ```mermaid
 flowchart TD
     subgraph SVCS["☁️ Microservicios y Mensajería - Kubernetes"]
-        SVC["Servicios .NET\nSerilog · OpenTelemetry · /health · /metrics"]
-        MQ["RabbitMQ\nColas principales + DLQs\nPlugin Prometheus activo"]
+        SVC["Servicios .NET\n[Container: ASP.NET Core / Worker Service]\nSerilog · OpenTelemetry · /health · /metrics"]
+        MQ["RabbitMQ\n[Container: Message Broker]\nColas principales + DLQs · Plugin Prometheus activo"]
     end
 
     subgraph OBS["📊 Stack de Observabilidad - Kubernetes"]
         subgraph METRICAS["Métricas y Alertas"]
-            PROM["Prometheus\nScraping cada 15s"]
-            GRAF["Grafana\nDashboards + Alertas"]
+            PROM["Prometheus\n[Container: Metrics DB]\nScraping cada 15s"]
+            GRAF["Grafana\n[Container: Dashboard]\nDashboards + Alertas DLQ"]
         end
 
         subgraph LOGS["Logs Centralizados"]
-            LOGSTASH["Logstash\nProcesamiento"]
-            ES["Elasticsearch\nAlmacenamiento"]
-            KIB["Kibana\nBúsqueda y análisis"]
+            LOGSTASH["Logstash\n[Container: Log Processor]\nProcesamiento de logs"]
+            ES["Elasticsearch\n[Container: Search DB]\nAlmacenamiento de logs y trazas"]
+            KIB["Kibana\n[Container: Log UI]\nBúsqueda y análisis por TraceId"]
         end
 
         subgraph TRAZAS["Trazas Distribuidas"]
-            OTEL["OpenTelemetry Collector"]
+            OTEL["OpenTelemetry Collector\n[Container: Telemetry]\nRecolecta y exporta trazas OTLP"]
         end
     end
 
-    OPS["👨‍💻 Equipo de Operaciones"]
+    OPS["👨‍💻 Equipo de Operaciones\n[Person]\nMonitorea salud del sistema 24/7"]
 
     SVC -->|"Logs JSON\ncon TraceId via Serilog"| LOGSTASH
     LOGSTASH --> ES
@@ -390,6 +391,11 @@ flowchart TD
     PROM --> GRAF
     GRAF -->|"Alerta: DLQ > 0\no tasa de error alta"| OPS
     KIB -->|"Búsqueda de logs\npor TraceId o servicio"| OPS
+
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+    classDef container fill:#1168bd,stroke:#0b4884,color:#fff
+    class OPS person
+    class SVC,MQ,PROM,GRAF,LOGSTASH,ES,KIB,OTEL container
 ```
 
 **Descripción:** Cada microservicio .NET expone dos canales de observabilidad: logs estructurados en JSON via Serilog (que incluyen el `TraceId` del evento para correlacionar entre servicios) y métricas via un endpoint `/metrics` estándar de Prometheus. RabbitMQ expone sus propias métricas via el plugin oficial de Prometheus, incluyendo la longitud de cada cola — las DLQs incluidas. Grafana consume esas métricas y tiene configurada una alerta que se dispara cuando cualquier DLQ acumula mensajes, notificando al equipo de operaciones para inspección y reinyección. OpenTelemetry recolecta las trazas distribuidas y las almacena en Elasticsearch, donde Kibana permite seguir el recorrido completo de cualquier evento usando su `TraceId`.
@@ -401,21 +407,21 @@ Estructura de capas aplicada en cada microservicio .NET para garantizar separaci
 ```mermaid
 flowchart TD
     subgraph API["API / Worker (Entry Point)"]
-        CTR["Controllers · MQTT Consumers\nRabbitMQ Consumers"]
+        CTR["Controllers · MQTT Consumers\n[Component]\nRabbitMQ Consumers"]
     end
     subgraph APP["Application Layer"]
-        CMD["Commands\nIngestEventCommand\nDetectStolenVehicleCommand"]
-        QRY["Queries\nGetPlateHistoryQuery"]
-        BHV["Pipeline Behaviors\nValidation · Logging"]
+        CMD["Commands\n[Component]\nIngestEventCommand · DetectStolenVehicleCommand"]
+        QRY["Queries\n[Component]\nGetPlateHistoryQuery"]
+        BHV["Pipeline Behaviors\n[Component]\nValidation · Logging"]
     end
     subgraph DOM["Domain Layer"]
-        ENT["Entities & Aggregates\nVehicleEvent · StolenVehicle"]
-        REP["IRepository interfaces"]
+        ENT["Entities & Aggregates\n[Component]\nVehicleEvent · StolenVehicle"]
+        REP["IRepository interfaces\n[Component]"]
     end
     subgraph INF["Infrastructure Layer"]
-        EFC["EF Core Repositories\nPostgreSQL"]
-        MSG["MassTransit Publishers\nRabbitMQ"]
-        S3C["MinIO Client\nFoto storage"]
+        EFC["EF Core Repositories\n[Component]\nPostgreSQL"]
+        MSG["MassTransit Publishers\n[Component]\nRabbitMQ"]
+        S3C["MinIO Client\n[Component]\nFoto storage"]
     end
 
     CTR -->|"IMediator.Send()"| CMD
@@ -427,6 +433,9 @@ flowchart TD
     REP --> EFC
     CMD --> MSG
     CMD --> S3C
+
+    classDef component fill:#1168bd,stroke:#0b4884,color:#fff
+    class CTR,CMD,QRY,BHV,ENT,REP,EFC,MSG,S3C component
 ```
 
 **Principios aplicados:**
