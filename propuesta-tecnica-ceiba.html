@@ -1454,7 +1454,7 @@ flowchart LR
     { step: 3, msg: '🐇 El Servicio de Ingesta publica el evento en RabbitMQ. El mensaje queda persistido hasta ser procesado.' },
     { step: 4, msg: '🔍 El Servicio de Detección consume el mensaje y busca la placa en la tabla de vehículos hurtados. ¡Coincidencia encontrada! Publica alerta en RabbitMQ.' },
     { step: 5, msg: '🔔 El Servicio de Notificaciones consume la alerta y la entrega en tiempo real al frontend del policía vía SignalR.' },
-    { step: 6, msg: '👮 El policía recibe la notificación en la app Blazor con placa, foto, GPS y datos del hurto. Tiempo total: &lt; 30 segundos.' },
+    { step: 6, msg: '👮 El policía recibe la notificación en la app React + TypeScript con placa, foto, GPS y datos del hurto. Tiempo total: &lt; 30 segundos.' },
   ];
 
   let flowCurrent = -1;
