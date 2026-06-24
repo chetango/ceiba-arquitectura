@@ -189,8 +189,57 @@
       margin-top: .8rem;
       overflow: auto;
       max-height: 420px;
+      position: relative; /* necesario para posicionar los controles */
     }
     .mermaid { font-size: 13px !important; }
+
+    /* ─── Zoom controls ─── */
+    .zoom-controls {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity .2s;
+      z-index: 10;
+    }
+    .mermaid-wrap:hover .zoom-controls { opacity: 1; }
+    .zoom-btn {
+      background: rgba(13,17,23,0.85);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: .72rem;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background .15s, color .15s;
+    }
+    .zoom-btn:hover { background: var(--border); color: #fff; }
+    .zoom-level-label {
+      background: rgba(13,17,23,0.85);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: .62rem;
+      padding: 0 6px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      min-width: 36px;
+      justify-content: center;
+    }
+    .mermaid-wrap .mermaid svg {
+      transition: transform .2s ease;
+      transform-origin: top left;
+    }
 
     /* ─── Device slide ─── */
     .device-grid {
@@ -1343,10 +1392,53 @@ flowchart LR
       const code = el.textContent.trim();
       el.setAttribute('data-rendered', '1');
       mermaid.render('mermaid-' + Math.random().toString(36).slice(2), code)
-        .then(({ svg }) => { el.innerHTML = svg; })
+        .then(({ svg }) => {
+          el.innerHTML = svg;
+          attachZoomControls(el.closest('.mermaid-wrap'));
+        })
         .catch(e => console.warn('Mermaid render error', e));
     });
   }
+
+  // ─── Zoom controls para diagramas Mermaid ───
+  const ZOOM_STEP = 0.25;
+  const ZOOM_MIN  = 0.5;
+  const ZOOM_MAX  = 3.0;
+
+  function attachZoomControls(wrap) {
+    if (!wrap || wrap.querySelector('.zoom-controls')) return;
+    let level = 1.0;
+
+    const controls = document.createElement('div');
+    controls.className = 'zoom-controls';
+    controls.innerHTML =
+      '<button class="zoom-btn" title="Alejar">−</button>' +
+      '<span class="zoom-level-label">100%</span>' +
+      '<button class="zoom-btn" title="Acercar">+</button>' +
+      '<button class="zoom-btn" title="Restablecer" style="font-size:.6rem;width:auto;padding:0 6px;">1:1</button>';
+
+    const [btnMinus, labelEl, btnPlus, btnReset] = controls.children;
+
+    function applyZoom() {
+      const svg = wrap.querySelector('svg');
+      if (svg) svg.style.transform = `scale(${level})`;
+      labelEl.textContent = Math.round(level * 100) + '%';
+    }
+
+    btnPlus.addEventListener('click',  (e) => { e.stopPropagation(); level = Math.min(ZOOM_MAX, +(level + ZOOM_STEP).toFixed(2)); applyZoom(); });
+    btnMinus.addEventListener('click', (e) => { e.stopPropagation(); level = Math.max(ZOOM_MIN, +(level - ZOOM_STEP).toFixed(2)); applyZoom(); });
+    btnReset.addEventListener('click', (e) => { e.stopPropagation(); level = 1.0; applyZoom(); });
+
+    // Guardar reset para llamarlo al cambiar de slide
+    wrap._resetZoom = () => { level = 1.0; applyZoom(); };
+
+    wrap.appendChild(controls);
+  }
+
+  // Reset zoom en todos los diagramas al cambiar de slide
+  Reveal.on('slidechanged', () => {
+    document.querySelectorAll('.mermaid-wrap').forEach(w => { if (w._resetZoom) w._resetZoom(); });
+  });
 
   // ─── Detection flow animation ───────────────────────
   const flowMessages = [
